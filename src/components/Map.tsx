@@ -10,6 +10,7 @@ interface MapViewProps {
   isochrone?: any;
   stops?: Stop[];
   onMapClick?: (lat: number, lng: number) => void;
+  onViewChange?: (lat: number, lng: number) => void;
 }
 
 const STOP_COLORS: Record<string, string> = {
@@ -24,13 +25,15 @@ function stopColor(mode: string) {
   return STOP_COLORS[mode] ?? "#888888";
 }
 
-export function MapView({ center, isochrone, stops, onMapClick }: MapViewProps) {
+export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibre.Map | null>(null);
   const marker = useRef<maplibre.Marker | null>(null);
   const mapLoaded = useRef(false);
   const onMapClickRef = useRef(onMapClick);
   onMapClickRef.current = onMapClick;
+  const onViewChangeRef = useRef(onViewChange);
+  onViewChangeRef.current = onViewChange;
 
   const createMarker = useCallback((lng: number, lat: number) => {
     if (!map.current) return;
@@ -62,8 +65,15 @@ export function MapView({ center, isochrone, stops, onMapClick }: MapViewProps) 
       zoom: 12,
     });
 
+    // Fetch stops based on current map center on load and after panning/zooming
+    const fireViewChange = () => {
+      const c = map.current?.getCenter();
+      if (c) onViewChangeRef.current?.(c.lat, c.lng);
+    };
+
     map.current.on("load", () => {
       mapLoaded.current = true;
+      fireViewChange();
 
       // Isochrone layers
       map.current?.addSource("isochrone", {
@@ -165,6 +175,8 @@ export function MapView({ center, isochrone, stops, onMapClick }: MapViewProps) 
         },
       });
     });
+
+    map.current.on("moveend", fireViewChange);
 
     // Zoom into cluster on click
     map.current.on("click", "stops-cluster", (e) => {

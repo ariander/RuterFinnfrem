@@ -39,10 +39,9 @@ export default function Home() {
     }
   }, [location, transitTime, walkTime, lastMileMode, fetchIsochrone]);
 
-  useEffect(() => {
-    if (!location) return;
-    getNearbyStops(location.lat, location.lng).then(setStops).catch(console.error);
-  }, [location]);
+  const handleViewChange = useCallback((lat: number, lng: number) => {
+    getNearbyStops(lat, lng).then(setStops).catch(console.error);
+  }, []);
 
   const handleMapClick = (lat: number, lng: number) =>
     setLocation({ lat, lng, name: "" });
@@ -74,6 +73,7 @@ export default function Home() {
         isochrone={isochrone}
         stops={stops}
         onMapClick={handleMapClick}
+        onViewChange={handleViewChange}
       />
 
       {loading && (
