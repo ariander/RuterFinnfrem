@@ -14,11 +14,12 @@ interface MapViewProps {
 }
 
 const STOP_COLORS: Record<string, string> = {
-  metro:  "#272D60",
-  rail:   "#C0392B",
-  tram:   "#E87722",
-  bus:    "#07A85A",
-  water:  "#2980B9",
+  metro:  "#EC700C",
+  tram:   "#0B91EF",
+  bus:    "#E60000",
+  coach:  "#75A300",
+  water:  "#682C88",
+  rail:   "#003087",
 };
 
 function stopColor(mode: string) {
@@ -58,12 +59,22 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
   useEffect(() => {
     if (!mapContainer.current) return;
 
-    map.current = new maplibre.Map({
-      container: mapContainer.current,
-      style: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-      center: [10.7522, 59.9139],
-      zoom: 12,
-    });
+    let destroyed = false;
+
+    // Fetch Voyager style, swap glyphs to our proxy, then initialise the map
+    fetch("https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json")
+      .then((r) => r.json())
+      .then((voyagerStyle) => {
+        if (destroyed || !mapContainer.current) return;
+
+        voyagerStyle.glyphs = "/api/fonts/{fontstack}/{range}.pbf";
+
+        map.current = new maplibre.Map({
+          container: mapContainer.current,
+          style: voyagerStyle,
+          center: [10.7522, 59.9139],
+          zoom: 12,
+        });
 
     // Fetch stops based on current map center on load and after panning/zooming
     const fireViewChange = () => {
@@ -71,9 +82,43 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
       if (c) onViewChangeRef.current?.(c.lat, c.lng);
     };
 
-    map.current.on("load", () => {
+    // Rasterise an SVG URL to ImageData via an offscreen <canvas>
+    function svgToImageData(url: string, size: number): Promise<ImageData> {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext("2d")!;
+          ctx.drawImage(img, 0, 0, size, size);
+          resolve(ctx.getImageData(0, 0, size, size));
+        };
+        img.onerror = reject;
+        img.src = url;
+      });
+    }
+
+    map.current.on("load", async () => {
       mapLoaded.current = true;
-      fireViewChange();
+
+      // Load transport mode icons — rasterised from SVG at 24×24
+      const modeIcons: [string, string][] = [
+        ["icon-metro", "/icons/metro.svg"],
+        ["icon-tram",  "/icons/tram.svg"],
+        ["icon-bus",   "/icons/bus.svg"],
+        ["icon-train", "/icons/train.svg"],
+        ["icon-boat",  "/icons/boat.svg"],
+      ];
+      await Promise.all(
+        modeIcons.map(([id, url]) =>
+          svgToImageData(url, 24)
+            .then((imgData) => {
+              if (map.current && !map.current.hasImage(id)) map.current.addImage(id, imgData);
+            })
+            .catch(() => {})
+        )
+      );
 
       // Isochrone layers
       map.current?.addSource("isochrone", {
@@ -117,41 +162,69 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
         layout: {
           "text-field": ["get", "point_count_abbreviated"],
           "text-size": 11,
+          "text-font": ["TID UI Bold"],
         },
         paint: {
           "text-color": "#ffffff",
         },
       });
 
-      // Individual stop — white border ring
+      // Individual stop — drop shadow
       map.current?.addLayer({
-        id: "stops-ring",
+        id: "stops-shadow",
         type: "circle",
         source: "stops",
         filter: ["!", ["has", "point_count"]],
         paint: {
-          "circle-radius": 7,
-          "circle-color": "#ffffff",
-          "circle-opacity": 0.9,
+          "circle-radius": 13,
+          "circle-color": "#000000",
+          "circle-opacity": 0.12,
+          "circle-translate": [0, 1],
+          "circle-blur": 1,
         },
       });
-      // Individual stop — colored dot by mode
+      // Individual stop — colored circle by mode
       map.current?.addLayer({
         id: "stops-dot",
         type: "circle",
         source: "stops",
         filter: ["!", ["has", "point_count"]],
         paint: {
-          "circle-radius": 5,
+          "circle-radius": 11,
           "circle-color": [
             "match", ["get", "mode"],
             "metro",  STOP_COLORS.metro,
-            "rail",   STOP_COLORS.rail,
             "tram",   STOP_COLORS.tram,
             "bus",    STOP_COLORS.bus,
+            "coach",  STOP_COLORS.coach,
             "water",  STOP_COLORS.water,
-            "#888888",
+            "rail",   STOP_COLORS.rail,
+            "#757575",
           ],
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#ffffff",
+        },
+      });
+      // Individual stop — mode icon (white SVG)
+      map.current?.addLayer({
+        id: "stops-icon",
+        type: "symbol",
+        source: "stops",
+        filter: ["!", ["has", "point_count"]],
+        layout: {
+          "icon-image": [
+            "match", ["get", "mode"],
+            "metro", "icon-metro",
+            "tram",  "icon-tram",
+            "bus",   "icon-bus",
+            "coach", "icon-bus",
+            "rail",  "icon-train",
+            "water", "icon-boat",
+            "icon-bus",
+          ],
+          "icon-size": 0.7,
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
         },
       });
       // Name labels — only at zoom >= 15, only individual stops
@@ -163,20 +236,26 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
         minzoom: 15,
         layout: {
           "text-field": ["get", "name"],
+          "text-font": ["TID UI Regular"],
           "text-size": 10,
           "text-offset": [0, 1.2],
           "text-anchor": "top",
           "text-max-width": 8,
         },
         paint: {
-          "text-color": "#272D60",
+          "text-color": "#333333",
           "text-halo-color": "#ffffff",
           "text-halo-width": 1.5,
         },
       });
+
+      // All sources & layers ready — now trigger the initial viewport fetch
+      fireViewChange();
     });
 
-    map.current.on("moveend", fireViewChange);
+    map.current.on("moveend", () => {
+      fireViewChange();
+    });
 
     // Zoom into cluster on click
     map.current.on("click", "stops-cluster", (e) => {
@@ -208,8 +287,12 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
       createMarker(lng, lat);
       if (onMapClickRef.current) onMapClickRef.current(lat, lng);
     });
+      }); // end fetch .then()
 
-    return () => map.current?.remove();
+    return () => {
+      destroyed = true;
+      map.current?.remove();
+    };
   }, [createMarker]);
 
   // Move map & marker when center changes
