@@ -22,10 +22,6 @@ const STOP_COLORS: Record<string, string> = {
   rail:   "#003087",
 };
 
-function stopColor(mode: string) {
-  return STOP_COLORS[mode] ?? "#888888";
-}
-
 export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibre.Map | null>(null);
@@ -176,11 +172,11 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
         source: "stops",
         filter: ["!", ["has", "point_count"]],
         paint: {
-          "circle-radius": 16,
-          "circle-color": "#000000",
-          "circle-opacity": 0.30,
+          "circle-radius": 20,
+          "circle-color": "#20212B",
+          "circle-opacity": 0.3,
           "circle-translate": [0, 3],
-          "circle-blur": 0.8,
+          "circle-blur": 1,
         },
       });
       // Individual stop — colored circle by mode
