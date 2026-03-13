@@ -61,8 +61,8 @@ export function MapView({ center, isochrone, onMapClick }: MapViewProps) {
         type: "fill",
         source: "isochrone",
         paint: {
-          "fill-color": "#2A3066",
-          "fill-opacity": 0.15,
+          "fill-color": "#07A85A",
+          "fill-opacity": 0.25,
         },
       });
 
@@ -73,7 +73,7 @@ export function MapView({ center, isochrone, onMapClick }: MapViewProps) {
         paint: {
           "line-color": "#272D60",
           "line-width": 3,
-          "line-opacity": 0.4,
+          "line-opacity": 0,
         },
       });
     });

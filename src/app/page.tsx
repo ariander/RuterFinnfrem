@@ -7,21 +7,14 @@ import { TimeSelector } from "@/components/TimeSelector";
 import { getIsochrone } from "@/lib/targomo";
 import Image from "next/image";
 
-const MAX_TOTAL_SECONDS = 900; // API limit: 15 minutes
-
 export default function Home() {
   const [location, setLocation] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [transitTime, setTransitTime] = useState(10);
   const [walkTime, setWalkTime] = useState(5);
   const [isochrone, setIsochrone] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [showLimitDialog, setShowLimitDialog] = useState(false);
-
-  const totalSeconds = (transitTime + walkTime) * 60;
-  const exceedsLimit = totalSeconds > MAX_TOTAL_SECONDS;
 
   const fetchIsochrone = useCallback(async (lat: number, lng: number, transit: number, walk: number) => {
-    if ((transit + walk) * 60 > MAX_TOTAL_SECONDS) return;
     setLoading(true);
     try {
       const data = await getIsochrone(lat, lng, transit, walk);
@@ -34,30 +27,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (location && !exceedsLimit) {
+    if (location) {
       fetchIsochrone(location.lat, location.lng, transitTime, walkTime);
     }
-  }, [location, transitTime, walkTime, fetchIsochrone, exceedsLimit]);
+  }, [location, transitTime, walkTime, fetchIsochrone]);
 
-  const handleTransitChange = (val: string) => {
-    const v = parseInt(val);
-    setTransitTime(v);
-    if ((v + walkTime) * 60 > MAX_TOTAL_SECONDS) {
-      setShowLimitDialog(true);
-    }
-  };
-
-  const handleWalkChange = (val: string) => {
-    const v = parseInt(val);
-    setWalkTime(v);
-    if ((transitTime + v) * 60 > MAX_TOTAL_SECONDS) {
-      setShowLimitDialog(true);
-    }
-  };
-
-  const handleMapClick = (lat: number, lng: number) => {
-    setLocation({ lat, lng, name: "" });
-  };
+  const handleTransitChange = (val: string) => setTransitTime(parseInt(val));
+  const handleWalkChange = (val: string) => setWalkTime(parseInt(val));
+  const handleMapClick = (lat: number, lng: number) => setLocation({ lat, lng, name: "" });
 
   return (
     <main className="relative w-full h-screen overflow-hidden bg-slate-50">
@@ -79,7 +56,6 @@ export default function Home() {
             walkTime={walkTime}
             onTransitChange={handleTransitChange}
             onWalkChange={handleWalkChange}
-            exceedsLimit={exceedsLimit}
           />
         </div>
       </div>
@@ -97,27 +73,6 @@ export default function Home() {
           <div className="bg-white p-5 rounded-2xl shadow-2xl flex items-center gap-3">
             <div className="w-5 h-5 border-3 border-ink-primary border-t-transparent rounded-full animate-spin" />
             <span className="font-medium text-ink-primary text-sm">Beregner reisetid...</span>
-          </div>
-        </div>
-      )}
-
-      {/* API limit dialog */}
-      {showLimitDialog && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
-            <h2 className="font-bold text-ink-primary text-lg mb-2">API-begrensning</h2>
-            <p className="text-ink-primary/70 text-sm mb-1">
-              Gratis Targomo API tillater maks <strong>15 minutter</strong> total reisetid (kollektiv + gange).
-            </p>
-            <p className="text-ink-primary/70 text-sm mb-5">
-              Du har valgt {transitTime} + {walkTime} = {transitTime + walkTime} minutter. Reduser til maks 15 for å beregne, eller oppgrader API-nøkkelen.
-            </p>
-            <button
-              onClick={() => setShowLimitDialog(false)}
-              className="w-full bg-ink-primary text-white font-medium py-2.5 rounded-xl hover:opacity-90 transition-opacity"
-            >
-              OK, forstått
-            </button>
           </div>
         </div>
       )}

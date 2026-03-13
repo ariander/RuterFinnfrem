@@ -14,7 +14,6 @@ interface TimeSelectorProps {
   walkTime: number;
   onTransitChange: (val: string) => void;
   onWalkChange: (val: string) => void;
-  exceedsLimit: boolean;
 }
 
 export function TimeSelector({
@@ -22,7 +21,6 @@ export function TimeSelector({
   walkTime,
   onTransitChange,
   onWalkChange,
-  exceedsLimit,
 }: TimeSelectorProps) {
   return (
     <div className="flex items-center gap-3 px-1">
@@ -72,11 +70,7 @@ export function TimeSelector({
       <span className="text-ink-primary/50 text-base shrink-0">=</span>
 
       {/* Total */}
-      <div className={`shrink-0 font-bold text-sm ${
-        exceedsLimit
-          ? "text-red-500"
-          : "text-ink-primary"
-      }`}>
+      <div className="shrink-0 font-bold text-sm text-ink-primary">
         {transitTime + walkTime} min
       </div>
     </div>
