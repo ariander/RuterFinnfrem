@@ -172,7 +172,7 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
         source: "stops",
         filter: ["!", ["has", "point_count"]],
         paint: {
-          "circle-radius": 20,
+          "circle-radius": 18,
           "circle-color": "#20212B",
           "circle-opacity": 0.3,
           "circle-translate": [0, 3],

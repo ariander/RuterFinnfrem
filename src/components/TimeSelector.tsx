@@ -29,7 +29,7 @@ export function TimeSelector({
   const isScooter = lastMileMode === "scooter";
 
   return (
-    <div className="flex items-center gap-4 px-1">
+    <div className="flex items-center justify-between sm:justify-start sm:gap-4 px-1 w-full">
       {/* Transit */}
       <div className="flex items-center gap-2">
         <div className="w-6 h-6 relative shrink-0">
@@ -99,8 +99,8 @@ export function TimeSelector({
         </Select>
       </div>
 
-      <span className="text-ink-primary/50 text-base shrink-0">=</span>
-      <div className="shrink-0 font-bold text-sm text-ink-primary">
+      <span className="hidden sm:block text-ink-primary/50 text-base shrink-0">=</span>
+      <div className="hidden sm:block shrink-0 font-bold text-sm text-ink-primary">
         {transitTime + walkTime} min
       </div>
     </div>
