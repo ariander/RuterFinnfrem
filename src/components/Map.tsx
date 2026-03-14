@@ -324,5 +324,5 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
     });
   }, [stops]);
 
-  return <div ref={mapContainer} className="w-full h-full" />;
+  return <div ref={mapContainer} className="absolute inset-0" />;
 }
