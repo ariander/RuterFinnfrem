@@ -329,16 +329,19 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
   }, [stops]);
 
   return (
-    // Extend the wrapper into the home-indicator safe area so the map canvas
-    // covers the full physical screen. We use a negative bottom on the
-    // *absolute child* rather than on the fixed <main>, since iOS clips
-    // fixed elements at the layout-viewport boundary but may still render
-    // overflow from absolutely-positioned children beyond it.
     <div
       className="absolute inset-x-0 top-0"
       style={{ bottom: "calc(-1 * env(safe-area-inset-bottom, 0px))" }}
     >
       <div ref={mapContainer} className="w-full h-full" />
+      {/* 🟣 PURPLE debug strip – sits at absolute bottom:0 of the extended
+          wrapper. If env(safe-area-inset-bottom) > 0 this element lives
+          *below* the blue fixed strip (layout-viewport bottom). Visible here
+          = iOS renders absolute overflow into the home-indicator zone. */}
+      <div
+        className="absolute inset-x-0 h-3 bg-purple-500 z-[901] opacity-90"
+        style={{ bottom: 0 }}
+      />
     </div>
   );
 }
