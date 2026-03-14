@@ -1,12 +1,21 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { MapView } from "@/components/Map";
 import { SearchBar } from "@/components/SearchBar";
 import { TimeSelector } from "@/components/TimeSelector";
 import { getIsochrone } from "@/lib/targomo";
 import { getNearbyStops, type Stop } from "@/lib/entur-stops";
 import Image from "next/image";
+
+/**
+ * Rough bounding box for Østlandet / the Ruter service area.
+ * Outside this box the ferry augmentation (hardcoded Oslo-fjord stops)
+ * won't apply, so we warn the user.
+ */
+function isOutsideOstlandet(lat: number, lng: number) {
+  return lat < 58.8 || lat > 61.2 || lng < 9.2 || lng > 12.5;
+}
 
 export default function Home() {
   const [location, setLocation] = useState<{ lat: number; lng: number; name: string } | null>(null);
@@ -16,6 +25,22 @@ export default function Home() {
   const [isochrone, setIsochrone] = useState<any>(null);
   const [stops, setStops] = useState<Stop[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Ferry warning toast state
+  const [ferryWarning, setFerryWarning] = useState(false);
+  const [ferryLeaving, setFerryLeaving] = useState(false);
+  const ferryAutoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ferryLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Animate the toast out, then remove it from DOM after the transition. */
+  const dismissFerry = useCallback(() => {
+    if (ferryAutoTimer.current) clearTimeout(ferryAutoTimer.current);
+    setFerryLeaving(true);
+    ferryLeaveTimer.current = setTimeout(() => {
+      setFerryWarning(false);
+      setFerryLeaving(false);
+    }, 350);
+  }, []);
 
   const fetchIsochrone = useCallback(async (
     lat: number, lng: number,
@@ -39,6 +64,23 @@ export default function Home() {
     }
   }, [location, transitTime, walkTime, lastMileMode, fetchIsochrone]);
 
+  // Show / hide ferry warning based on whether location is outside Østlandet
+  useEffect(() => {
+    if (!location || !isOutsideOstlandet(location.lat, location.lng)) {
+      dismissFerry();
+      return;
+    }
+    // Cancel any in-progress leave animation and show fresh
+    if (ferryLeaveTimer.current) clearTimeout(ferryLeaveTimer.current);
+    if (ferryAutoTimer.current) clearTimeout(ferryAutoTimer.current);
+    setFerryWarning(true);
+    setFerryLeaving(false);
+    ferryAutoTimer.current = setTimeout(dismissFerry, 8000);
+    return () => {
+      if (ferryAutoTimer.current) clearTimeout(ferryAutoTimer.current);
+    };
+  }, [location, dismissFerry]);
+
   const handleViewChange = useCallback((lat: number, lng: number) => {
     getNearbyStops(lat, lng).then(setStops).catch(console.error);
   }, []);
@@ -47,7 +89,7 @@ export default function Home() {
     setLocation({ lat, lng, name: "" });
 
   return (
-    <main className="relative w-full h-dvh overflow-hidden">
+    <main className="fixed inset-0">
       <div
         className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4"
         style={{ top: "calc(env(safe-area-inset-top) + 1rem)" }}
@@ -84,6 +126,32 @@ export default function Home() {
           <div className="bg-white p-5 rounded-2xl shadow-2xl flex items-center gap-3">
             <div className="w-5 h-5 border-3 border-ink-primary border-t-transparent rounded-full animate-spin" />
             <span className="font-medium text-ink-primary text-sm">Beregner reisetid...</span>
+          </div>
+        </div>
+      )}
+
+      {ferryWarning && (
+        <div
+          className={`fixed left-1/2 -translate-x-1/2 z-[200] w-full max-w-sm px-4 duration-350 ${
+            ferryLeaving
+              ? "animate-out fade-out slide-out-to-bottom-4"
+              : "animate-in fade-in slide-in-from-bottom-4"
+          }`}
+          style={{ bottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}
+        >
+          <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-xl px-4 py-3 flex items-start gap-3 border border-ink-primary/10">
+            <span className="text-base mt-px shrink-0">⛴️</span>
+            <p className="text-xs text-ink-primary/80 leading-relaxed">
+              Fergeberegninger i denne POC-en er kun kalibrert for Oslofjorden.
+              Resultater i dette området kan avvike.
+            </p>
+            <button
+              onClick={dismissFerry}
+              className="shrink-0 text-ink-primary/30 hover:text-ink-primary/60 transition-colors text-lg leading-none -mt-0.5"
+              aria-label="Lukk"
+            >
+              ×
+            </button>
           </div>
         </div>
       )}

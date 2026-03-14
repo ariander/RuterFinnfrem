@@ -1,4 +1,67 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getReachableFerryStops } from "@/lib/entur-ferry";
+
+/**
+ * Fire a Targomo polygon request from a ferry terminal with the remaining
+ * time budget.  The transit frame is shifted to reflect the ferry arrival
+ * time so local bus connections are timed correctly.
+ *
+ * @returns Array of GeoJSON features, or null on error
+ */
+async function ferryTerminalPolygon(
+  lat: number,
+  lng: number,
+  remainingSeconds: number,
+  lastMileSeconds: number,
+  arrivalFrameTime: number,   // seconds from midnight (= 16:00 + trip duration)
+  dateInt: number,
+  key: string,
+): Promise<any[] | null> {
+  const walkSec = Math.min(lastMileSeconds, remainingSeconds);
+
+  const body = {
+    sources: [
+      {
+        lat, lng, id: "ferry-terminal",
+        tm: {
+          transit: {
+            maxWalkingTimeFromSource: walkSec,
+            maxWalkingTimeToTarget: walkSec,
+          },
+        },
+      },
+    ],
+    edgeWeight: "time",
+    maxEdgeWeight: remainingSeconds,
+    transitFrameDate: dateInt,
+    transitFrameTime: arrivalFrameTime,
+    transitFrameDuration: 45 * 60,
+    polygon: {
+      serializer: "geojson",
+      srid: 4326,
+      simplify: 100,
+      buffer: 0.001,
+      values: [remainingSeconds],
+    },
+  };
+
+  try {
+    const res = await fetch(
+      `https://api.targomo.com/westcentraleurope/v1/polygon_post?key=${key}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    const data = json.data || json;
+    return data?.features ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(req: NextRequest) {
   const key = process.env.TARGOMO_KEY;
@@ -17,18 +80,29 @@ export async function POST(req: NextRequest) {
     const lastMileSeconds = lastMileMode === "scooter"
       ? (walkTimeSeconds * 3 || 60)
       : (walkTimeSeconds || 60);
-    const totalTime = transitTimeSeconds + lastMileSeconds;
+    const useTransit = transitMinutes > 0;
 
+    // Total journey budget = transit time + last-mile walking.
+    // This matches exactly what the UI displays (e.g. "45 min + 30 min = 75 min").
+    // Ferry-reachable areas (Nesodden etc.) that Targomo misses are handled separately
+    // via Entur + secondary Targomo calls below — no need to inflate this budget.
+    const totalTime = useTransit
+      ? transitTimeSeconds + lastMileSeconds
+      : lastMileSeconds;
+
+    // Use the next upcoming weekday at 16:00 (afternoon rush hour)
     const now = new Date();
-    const nextMonday = new Date();
-    nextMonday.setDate(now.getDate() + ((1 + 7 - now.getDay()) % 7 || 7));
+    const daysUntilWeekday = [6, 0].includes(now.getDay())
+      ? (8 - now.getDay()) % 7 || 1   // Sat → Mon (2), Sun → Mon (1)
+      : 0;                              // Already a weekday — use today
+    const weekday = new Date();
+    weekday.setDate(now.getDate() + daysUntilWeekday);
     const dateStr =
-      nextMonday.getFullYear().toString() +
-      (nextMonday.getMonth() + 1).toString().padStart(2, "0") +
-      nextMonday.getDate().toString().padStart(2, "0");
+      weekday.getFullYear().toString() +
+      (weekday.getMonth() + 1).toString().padStart(2, "0") +
+      weekday.getDate().toString().padStart(2, "0");
 
     // When transitMinutes = 0, use pure walking mode (no transit hops possible)
-    const useTransit = transitMinutes > 0;
     const sourceTm = useTransit
       ? {
           transit: {
@@ -37,6 +111,10 @@ export async function POST(req: NextRequest) {
           },
         }
       : { walk: {} };
+
+    // 45-minute frame: models "I can time my departure to the best transit
+    // connection within a 45-minute afternoon rush window" — invisible to user.
+    const transitFrameDuration = 45 * 60;
 
     const targomoBody = {
       sources: [
@@ -49,8 +127,8 @@ export async function POST(req: NextRequest) {
       maxEdgeWeight: totalTime,
       ...(useTransit && {
         transitFrameDate: parseInt(dateStr),
-        transitFrameTime: 8 * 3600,
-        transitFrameDuration: Math.max(totalTime, 3600),
+        transitFrameTime: 16 * 3600,       // 16:00 — afternoon rush hour
+        transitFrameDuration,
       }),
       polygon: {
         serializer: "geojson",
@@ -77,7 +155,57 @@ export async function POST(req: NextRequest) {
     }
 
     const json = await response.json();
-    return NextResponse.json(json.data || json);
+    const targomoData = json.data || json;
+
+    // ── Ferry augmentation ────────────────────────────────────────────────────
+    // Entur has full Norwegian GTFS data (Nesoddbåten, island ferries, etc.).
+    // For each ferry terminal Entur says is reachable, we fire a secondary
+    // Targomo request *from that terminal* with the remaining time budget.
+    // This gives accurate road/transit coverage beyond the water crossing
+    // (e.g. local buses on Nesodden, walking on the island).
+    if (useTransit && targomoData?.features) {
+      try {
+        // ISO datetime for Entur matching the Targomo transit frame (16:00 CET)
+        const isoDateTime =
+          `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}` +
+          `T16:00:00+01:00`;
+
+        const ferryStops = await getReachableFerryStops(
+          lat, lng,
+          totalTime,
+          isoDateTime,
+        );
+
+        if (ferryStops.length > 0) {
+          const secondaryResults = await Promise.allSettled(
+            ferryStops
+              .filter((stop) => totalTime - stop.tripSeconds >= 300) // at least 5 min remaining
+              .map((stop) =>
+                ferryTerminalPolygon(
+                  stop.lat,
+                  stop.lng,
+                  totalTime - stop.tripSeconds,   // remaining budget
+                  lastMileSeconds,
+                  16 * 3600 + stop.tripSeconds,   // transit frame starts at arrival time
+                  parseInt(dateStr),
+                  key,
+                ),
+              ),
+          );
+
+          for (const result of secondaryResults) {
+            if (result.status === "fulfilled" && result.value) {
+              targomoData.features = [...targomoData.features, ...result.value];
+            }
+          }
+        }
+      } catch (e) {
+        // Ferry augmentation is best-effort — main Targomo polygon still returned
+        console.warn("Ferry augmentation failed:", e);
+      }
+    }
+
+    return NextResponse.json(targomoData);
   } catch (error: any) {
     console.error("Isochrone error:", error);
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });

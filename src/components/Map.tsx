@@ -305,14 +305,8 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
     if (!source) return;
     source.setData(isochrone);
 
-    const bounds = new maplibre.LngLatBounds();
-    for (const feature of isochrone.features ?? []) {
-      const coords = feature.geometry.type === "Polygon"
-        ? feature.geometry.coordinates.flat(1)
-        : feature.geometry.coordinates.flat(2);
-      for (const coord of coords) bounds.extend(coord as [number, number]);
-    }
-    if (!bounds.isEmpty()) map.current.fitBounds(bounds, { padding: 80 });
+    // No fitBounds — the isochrone can span the whole region and would zoom way out,
+    // making small but important polygons (e.g. ferry islands) invisible.
   }, [isochrone]);
 
   // Update stops layer
@@ -330,5 +324,5 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
     });
   }, [stops]);
 
-  return <div ref={mapContainer} className="w-full h-dvh" />;
+  return <div ref={mapContainer} className="w-full h-full" />;
 }
