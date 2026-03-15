@@ -100,6 +100,18 @@ export async function searchTrip(
       from: { coordinates: { latitude: ${from.lat}, longitude: ${from.lng} } }
       to: { coordinates: { latitude: ${to.lat}, longitude: ${to.lng} } }
       numTripPatterns: ${numPatterns}
+      modes: {
+        accessMode: foot
+        egressMode: foot
+        transportModes: [
+          { transportMode: bus },
+          { transportMode: tram },
+          { transportMode: metro },
+          { transportMode: rail },
+          { transportMode: water },
+          { transportMode: coach }
+        ]
+      }
     ) {
       tripPatterns {
         duration startTime endTime walkDistance
