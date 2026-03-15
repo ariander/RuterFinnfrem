@@ -323,11 +323,11 @@ export function MapView({
           // so separation stays consistent at all zoom levels
           const DOT_CONFIGS: { modeCount: number; modeIndex: number; translate: [number, number] }[] = [
             { modeCount: 1, modeIndex: 0, translate: [0, 0] },
-            { modeCount: 2, modeIndex: 0, translate: [-7, 0] },
-            { modeCount: 2, modeIndex: 1, translate: [7, 0] },
-            { modeCount: 3, modeIndex: 0, translate: [-8, -4] },
-            { modeCount: 3, modeIndex: 1, translate: [0, 7] },
-            { modeCount: 3, modeIndex: 2, translate: [8, -4] },
+            { modeCount: 2, modeIndex: 0, translate: [-4, 0] },
+            { modeCount: 2, modeIndex: 1, translate: [4, 0] },
+            { modeCount: 3, modeIndex: 0, translate: [-5, -3] },
+            { modeCount: 3, modeIndex: 1, translate: [0, 5] },
+            { modeCount: 3, modeIndex: 2, translate: [5, -3] },
           ];
           for (const { modeCount, modeIndex, translate } of DOT_CONFIGS) {
             map.current?.addLayer({
