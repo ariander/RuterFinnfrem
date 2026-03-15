@@ -209,6 +209,44 @@ export default function Home() {
   const [routeDetailMinimized, setRouteDetailMinimized] = useState(false);
   const [vehicleOccupancy, setVehicleOccupancy] = useState<Record<string, string>>({});
 
+  // Dynamic map follow-padding: measure top card + bottom panel heights
+  const topCardRef = useRef<HTMLDivElement>(null);
+  const walkPanelRef = useRef<HTMLDivElement>(null);
+  const [topPad, setTopPad] = useState(100);
+  const [bottomPad, setBottomPad] = useState(360);
+
+  // Observe top card size (re-runs when destination becomes set/cleared)
+  useEffect(() => {
+    const el = topCardRef.current;
+    if (!el) { setTopPad(100); return; }
+    const update = () => setTopPad(el.getBoundingClientRect().bottom + 16);
+    const obs = new ResizeObserver(update);
+    obs.observe(el);
+    update();
+    return () => obs.disconnect();
+  }, [destination]);
+
+  // Called by RoutePanel / RouteDetail / walk panel when their height changes
+  const handleBottomBoundsChange = useCallback((dist: number) => {
+    setBottomPad(dist + 16);
+  }, []);
+
+  // Observe walk-only panel (separate element, not a component with onBoundsChange)
+  useEffect(() => {
+    const el = walkPanelRef.current;
+    if (!el) return;
+    const update = () => setBottomPad(window.innerHeight - el.getBoundingClientRect().top + 16);
+    const obs = new ResizeObserver(update);
+    obs.observe(el);
+    update();
+    return () => obs.disconnect();
+  }, [walkOnly, walkRoute]);
+
+  const followPadding = useMemo(
+    () => ({ top: topPad, bottom: bottomPad, left: 40, right: 40 }),
+    [topPad, bottomPad],
+  );
+
   const handleVehicleUpdate = useCallback(
     (positions: Array<{ serviceJourneyId: string; occupancyStatus?: string }>) => {
       setVehicleOccupancy((prev) => {
@@ -294,6 +332,7 @@ export default function Home() {
       {/* Route header — shown when destination is set */}
       {destination && (
         <div
+          ref={topCardRef}
           className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4"
           style={{ top: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
         >
@@ -337,6 +376,7 @@ export default function Home() {
         onStopClick={handleDestinationSelect}
         vehicleLegs={vehicleLegs}
         onVehicleUpdate={handleVehicleUpdate}
+        followPadding={followPadding}
       />
 
       {/* Route panel / detail */}
@@ -346,6 +386,7 @@ export default function Home() {
           selectedIndex={selectedRoute}
           onSelect={handleRouteSelect}
           walkRoute={walkRoute ?? undefined}
+          onBoundsChange={handleBottomBoundsChange}
         />
       )}
       {routes.length > 0 && expandedRoute !== null && (
@@ -355,12 +396,14 @@ export default function Home() {
           onBack={() => setExpandedRoute(null)}
           onMinimizedChange={setRouteDetailMinimized}
           occupancy={vehicleOccupancy}
+          onBoundsChange={handleBottomBoundsChange}
         />
       )}
 
       {/* Walk-only: no transit routes — show walk + bike panel */}
       {walkOnly && routes.length === 0 && destination && userLocation && (
         <div
+          ref={walkPanelRef}
           className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 animate-in slide-in-from-bottom-4 fade-in duration-300"
           style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)" }}
         >

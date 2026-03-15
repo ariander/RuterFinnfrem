@@ -28,6 +28,8 @@ interface MapViewProps {
     color: string;
   }>;
   onVehicleUpdate?: (positions: Array<{ serviceJourneyId: string; occupancyStatus?: string }>) => void;
+  /** Dynamic padding so the user dot appears centred in the space between the top and bottom UI cards */
+  followPadding?: { top: number; bottom: number; left: number; right: number };
   fakeVehicles?: Array<{
     id: string;
     lat: number;
@@ -157,6 +159,7 @@ export function MapView({
   vehicleLegs,
   fakeVehicles,
   onVehicleUpdate,
+  followPadding,
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibre.Map | null>(null);
@@ -620,21 +623,26 @@ export function MapView({
     });
   }, [userLocation]);
 
-  const FOLLOW_PADDING = { top: 80, bottom: 460, left: 40, right: 40 };
-  const FOLLOW_PADDING_MINIMIZED = { top: 80, bottom: 160, left: 40, right: 40 };
+  // Keep a ref to the latest follow padding — updated on every render, never triggers effects
+  const FOLLOW_PADDING_FALLBACK = { top: 100, bottom: 360, left: 40, right: 40 };
+  const followPaddingRef = useRef(followPadding ?? FOLLOW_PADDING_FALLBACK);
+  followPaddingRef.current = followPadding ?? FOLLOW_PADDING_FALLBACK;
 
-  // Re-center when detail panel is minimized/expanded
+  // Re-center when detail panel is minimized/expanded — wait for the 300ms CSS transition to
+  // finish so that ResizeObserver has already delivered the final padding values.
   const prevDetailMinimized = useRef<boolean | undefined>(undefined);
   useEffect(() => {
     if (!map.current || !userLocation || !centerOnUser || !isFollowingRef.current) return;
     if (prevDetailMinimized.current === detailMinimized) return;
     prevDetailMinimized.current = detailMinimized;
-    map.current.easeTo({
-      center: [userLocation.lng, userLocation.lat],
-      duration: 400,
-      padding: detailMinimized ? FOLLOW_PADDING_MINIMIZED : FOLLOW_PADDING,
-    });
-  }, [detailMinimized, centerOnUser, userLocation]);
+    setTimeout(() => {
+      map.current?.easeTo({
+        center: [userLocation.lng, userLocation.lat],
+        duration: 400,
+        padding: followPaddingRef.current,
+      });
+    }, 320); // 300ms CSS transition + small buffer
+  }, [detailMinimized, centerOnUser, userLocation]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Zoom to user when entering route detail
   useEffect(() => {
@@ -647,7 +655,7 @@ export function MapView({
         zoom: 15,
         duration: 800,
         essential: true,
-        padding: FOLLOW_PADDING,
+        padding: followPaddingRef.current,
       });
     }
     if (!centerOnUser) {
@@ -655,7 +663,7 @@ export function MapView({
       setShowRecenter(false);
     }
     prevCenterOnUser.current = !!centerOnUser;
-  }, [centerOnUser, userLocation]);
+  }, [centerOnUser, userLocation]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Follow user location continuously when in follow mode (only on GPS updates, not on centerOnUser flip)
   useEffect(() => {
@@ -663,7 +671,7 @@ export function MapView({
     map.current.easeTo({
       center: [userLocation.lng, userLocation.lat],
       duration: 800,
-      padding: detailMinimized ? FOLLOW_PADDING_MINIMIZED : FOLLOW_PADDING,
+      padding: followPaddingRef.current,
     });
   }, [userLocation]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -951,7 +959,7 @@ export function MapView({
       zoom: 15,
       duration: 600,
       essential: true,
-      padding: detailMinimized ? FOLLOW_PADDING_MINIMIZED : FOLLOW_PADDING,
+      padding: followPaddingRef.current,
     });
   }
 

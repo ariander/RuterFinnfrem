@@ -12,6 +12,8 @@ interface RouteDetailProps {
   onMinimizedChange?: (minimized: boolean) => void;
   /** Real-time occupancy keyed by serviceJourneyId */
   occupancy?: Record<string, string>;
+  /** Called with (window.innerHeight - panelTop) so the map can centre between cards */
+  onBoundsChange?: (distFromViewportBottom: number) => void;
 }
 
 function getActiveLegIndex(trip: TripPattern, now: number): number | null {
@@ -47,13 +49,26 @@ function occupancyInfo(status: string): { icon: string; label: string } | null {
   return null;
 }
 
-export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, occupancy }: RouteDetailProps) {
+export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, occupancy, onBoundsChange }: RouteDetailProps) {
   const [expandedLegs, setExpandedLegs] = useState<Set<number>>(new Set());
   const [minimized, setMinimized] = useState(false);
+  const outerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     onMinimizedChange?.(minimized);
   }, [minimized]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Notify parent of panel height so map can centre between cards
+  useEffect(() => {
+    const el = outerRef.current;
+    if (!el || !onBoundsChange) return;
+    const update = () => onBoundsChange(window.innerHeight - el.getBoundingClientRect().top);
+    const obs = new ResizeObserver(update);
+    obs.observe(el);
+    update();
+    return () => obs.disconnect();
+  }, [onBoundsChange]);
+
   const [now, setNow] = useState(Date.now());
   const activeLegRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -116,6 +131,7 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
 
   return (
     <div
+      ref={outerRef}
       className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 animate-in slide-in-from-bottom-4 fade-in duration-300"
       style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)" }}
     >

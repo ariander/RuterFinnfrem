@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useEffect } from "react";
 import type { TripPattern, Leg } from "@/lib/entur-trip";
 import { getModeColor, formatTime, formatDuration, getModeName } from "@/lib/entur-trip";
 
@@ -11,6 +12,7 @@ interface RoutePanelProps {
   selectedIndex: number;
   onSelect: (index: number) => void;
   walkRoute?: TripPattern;
+  onBoundsChange?: (distFromViewportBottom: number) => void;
 }
 
 function LegBar({ legs }: { legs: Leg[] }) {
@@ -88,7 +90,19 @@ function RealtimeBadge() {
   );
 }
 
-export function RoutePanel({ routes, selectedIndex, onSelect, walkRoute }: RoutePanelProps) {
+export function RoutePanel({ routes, selectedIndex, onSelect, walkRoute, onBoundsChange }: RoutePanelProps) {
+  const outerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = outerRef.current;
+    if (!el || !onBoundsChange) return;
+    const update = () => onBoundsChange(window.innerHeight - el.getBoundingClientRect().top);
+    const obs = new ResizeObserver(update);
+    obs.observe(el);
+    update();
+    return () => obs.disconnect();
+  }, [onBoundsChange]);
+
   if (routes.length === 0) return null;
 
   const hasRealtime = (trip: TripPattern) => trip.legs.some((l) => l.realtime);
@@ -103,6 +117,7 @@ export function RoutePanel({ routes, selectedIndex, onSelect, walkRoute }: Route
 
   return (
     <div
+      ref={outerRef}
       className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 animate-in slide-in-from-bottom-4 fade-in duration-300"
       style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)" }}
     >
