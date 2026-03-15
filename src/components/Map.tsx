@@ -307,51 +307,30 @@ export function MapView({
             },
           });
 
-          // ── Stops source with clustering ───────────────────────────
+          // ── Stops source ───────────────────────────
           map.current?.addSource("stops", {
             type: "geojson",
             data: emptyFC,
-            cluster: true,
-            clusterMaxZoom: 13,
-            clusterRadius: 40,
           });
 
+          // Dots at low zoom levels (< 12)
           map.current?.addLayer({
-            id: "stops-cluster",
+            id: "stops-dots",
             type: "circle",
             source: "stops",
-            filter: ["has", "point_count"],
+            maxzoom: 12,
             paint: {
-              "circle-color": "#272D60",
-              "circle-radius": [
-                "step",
-                ["get", "point_count"],
-                12,
-                5,
-                16,
-                20,
-                20,
-              ],
-              "circle-opacity": 0.85,
+              "circle-radius": 4,
+              "circle-color": ["get", "color"],
+              "circle-opacity": 0.9,
             },
-          });
-          map.current?.addLayer({
-            id: "stops-cluster-count",
-            type: "symbol",
-            source: "stops",
-            filter: ["has", "point_count"],
-            layout: {
-              "text-field": ["get", "point_count_abbreviated"],
-              "text-size": 11,
-              "text-font": ["TID UI Bold"],
-            },
-            paint: { "text-color": "#ffffff" },
           });
 
           map.current?.addLayer({
             id: "stops-badge",
             type: "symbol",
             source: "stops",
+            minzoom: 12,
             filter: ["!", ["has", "point_count"]],
             layout: {
               "icon-image": [
@@ -437,37 +416,6 @@ export function MapView({
               "text-halo-color": "#ffffff",
               "text-halo-width": 1.5,
             },
-          });
-
-          // Cluster click to zoom
-          map.current?.on("click", "stops-cluster", (e) => {
-            const features = map.current?.queryRenderedFeatures(e.point, {
-              layers: ["stops-cluster"],
-            });
-            if (!features?.length) return;
-            const clusterId = features[0].properties?.cluster_id;
-            const source = map.current?.getSource(
-              "stops",
-            ) as maplibre.GeoJSONSource;
-            source
-              .getClusterExpansionZoom(clusterId)
-              .then((zoom) => {
-                if (zoom == null || !map.current) return;
-                map.current.easeTo({
-                  center: (features[0].geometry as any)
-                    .coordinates as [number, number],
-                  zoom,
-                });
-              })
-              .catch(() => {});
-            e.originalEvent.stopPropagation();
-          });
-
-          map.current?.on("mouseenter", "stops-cluster", () => {
-            if (map.current) map.current.getCanvas().style.cursor = "pointer";
-          });
-          map.current?.on("mouseleave", "stops-cluster", () => {
-            if (map.current) map.current.getCanvas().style.cursor = "";
           });
 
           fireViewChange();
@@ -610,6 +558,7 @@ export function MapView({
           properties: {
             name: s.name,
             mode,
+            color: STOP_COLORS[mode] || STOP_COLORS.bus,
             modeIndex: i,
             modeCount: arr.length,
           },

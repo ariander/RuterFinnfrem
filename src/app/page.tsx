@@ -193,8 +193,8 @@ export default function Home() {
         />
       )}
 
-      {/* Loading overlay */}
-      {loadingVisible && (
+      {/* Loading overlay — only show if no routes found yet */}
+      {loadingVisible && routes.length === 0 && (
         <div
           className={`absolute inset-0 bg-white/20 backdrop-blur-[2px] z-[100] flex items-center justify-center ${
             loadingLeaving

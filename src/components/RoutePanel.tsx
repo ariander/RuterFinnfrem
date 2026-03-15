@@ -51,21 +51,21 @@ function LegBar({ legs }: { legs: Leg[] }) {
 
 function LegSummary({ legs }: { legs: Leg[] }) {
   const transitLegs = legs.filter((l) => l.mode !== "foot");
-  if (transitLegs.length === 0) return <span className="text-xs text-ink-primary/60">Kun gange</span>;
+  if (transitLegs.length === 0) return <span className="text-sm text-ink-primary/60">Kun gange</span>;
 
   return (
     <div className="flex items-center gap-1 flex-wrap">
       {transitLegs.map((leg, i) => (
         <span key={i} className="flex items-center gap-1">
-          {i > 0 && <span className="text-ink-primary/30 text-xs">›</span>}
+          {i > 0 && <span className="text-ink-primary/30 text-sm">›</span>}
           <span
-            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold text-white"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold text-white"
             style={{ backgroundColor: getModeColor(leg.mode) }}
           >
             {leg.line?.publicCode || getModeName(leg.mode)}
           </span>
           {leg.intermediateEstimatedCalls && leg.intermediateEstimatedCalls.length > 0 && (
-            <span className="text-[10px] text-ink-primary/50">
+            <span className="text-xs text-ink-primary/50">
               {leg.intermediateEstimatedCalls.length + 1} stopp
             </span>
           )}
@@ -97,8 +97,8 @@ export function RoutePanel({ routes, selectedIndex, onSelect }: RoutePanelProps)
       <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/5 overflow-hidden">
         <div className="px-4 pt-3 pb-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-ink-primary">Reiseruter</h2>
-            <span className="text-[10px] text-ink-primary/40">{routes.length} alternativer</span>
+            <h2 className="text-base font-semibold text-ink-primary">Reiseruter</h2>
+            <span className="text-xs text-ink-primary/40">{routes.length} alternativer</span>
           </div>
         </div>
 
@@ -120,12 +120,12 @@ export function RoutePanel({ routes, selectedIndex, onSelect }: RoutePanelProps)
                 {/* Top row: duration + time range */}
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <span className={`text-base font-bold ${isSelected ? "text-[#091AA9]" : "text-ink-primary"}`}>
+                    <span className={`text-lg font-bold ${isSelected ? "text-[#091AA9]" : "text-ink-primary"}`}>
                       {formatDuration(trip.duration)}
                     </span>
                     {hasRealtime(trip) && <RealtimeBadge />}
                   </div>
-                  <span className="text-xs text-ink-primary/60">
+                  <span className="text-sm text-ink-primary/60">
                     {formatTime(trip.startTime)} – {formatTime(trip.endTime)}
                   </span>
                 </div>
@@ -139,7 +139,7 @@ export function RoutePanel({ routes, selectedIndex, onSelect }: RoutePanelProps)
                 <div className="flex items-center justify-between">
                   <LegSummary legs={trip.legs} />
                   {transfers > 0 && (
-                    <span className="text-[10px] text-ink-primary/40 shrink-0 ml-2">
+                    <span className="text-xs text-ink-primary/40 shrink-0 ml-2">
                       {transfers} {transfers === 1 ? "bytte" : "bytter"}
                     </span>
                   )}

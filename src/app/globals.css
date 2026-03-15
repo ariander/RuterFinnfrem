@@ -172,3 +172,8 @@
   0% { transform: scale(0.5); opacity: 1; }
   100% { transform: scale(1.4); opacity: 0; }
 }
+
+/* Prevent browser zoom on touch over route panel */
+[role="region"] {
+  touch-action: manipulation;
+}
