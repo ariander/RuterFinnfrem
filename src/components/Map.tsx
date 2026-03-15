@@ -29,6 +29,28 @@ const STOP_COLORS: Record<string, string> = {
 
 const BADGE_OFFSET = 22;
 
+/** Calculate geographic offset for overlapping stop dots (33% overlap) */
+function getOffsetForMode(modeCount: number, modeIndex: number): [number, number] {
+  const OFFSET = 0.000055; // ~6 meters at equator, ~4.5 meters at Oslo latitude
+
+  if (modeCount === 1) return [0, 0];
+
+  if (modeCount === 2) {
+    return modeIndex === 0 ? [-OFFSET, 0] : [OFFSET, 0];
+  }
+
+  if (modeCount === 3) {
+    // Arrange in a triangle pattern
+    if (modeIndex === 0) return [-OFFSET, -OFFSET * 0.5];
+    if (modeIndex === 1) return [0, OFFSET];
+    return [OFFSET, -OFFSET * 0.5];
+  }
+
+  // For modeCount > 3, use circular arrangement
+  const angle = (modeIndex / modeCount) * Math.PI * 2;
+  return [OFFSET * Math.cos(angle), OFFSET * Math.sin(angle)];
+}
+
 /** Build GeoJSON for a trip pattern's legs */
 function routeToGeoJSON(
   trip: TripPattern,
@@ -549,20 +571,23 @@ export function MapView({
     source.setData({
       type: "FeatureCollection",
       features: (stops ?? []).flatMap((s) =>
-        s.modes.slice(0, MAX_MODES).map((mode, i, arr) => ({
-          type: "Feature" as const,
-          geometry: {
-            type: "Point" as const,
-            coordinates: [s.lng, s.lat],
-          },
-          properties: {
-            name: s.name,
-            mode,
-            color: STOP_COLORS[mode] || STOP_COLORS.bus,
-            modeIndex: i,
-            modeCount: arr.length,
-          },
-        })),
+        s.modes.slice(0, MAX_MODES).map((mode, i, arr) => {
+          const offset = getOffsetForMode(arr.length, i);
+          return {
+            type: "Feature" as const,
+            geometry: {
+              type: "Point" as const,
+              coordinates: [s.lng + offset[0], s.lat + offset[1]],
+            },
+            properties: {
+              name: s.name,
+              mode,
+              color: STOP_COLORS[mode] || STOP_COLORS.bus,
+              modeIndex: i,
+              modeCount: arr.length,
+            },
+          };
+        }),
       ),
     });
   }, [stops]);
