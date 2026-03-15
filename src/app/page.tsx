@@ -311,16 +311,19 @@ export default function Home() {
           bottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)",
         }}
       >
-        {/* Expanded info box */}
+        {/* Expanded info box — slides in from left */}
         <div
-          className={`absolute bottom-0 left-0 origin-bottom-left ${
+          className={`absolute bottom-0 w-72 mb-12 ${
             infoOpen
-              ? "opacity-100 scale-100 pointer-events-auto"
-              : "opacity-0 scale-75 pointer-events-none"
+              ? "pointer-events-auto"
+              : "pointer-events-none"
           }`}
-          style={{ transition: "opacity 300ms ease, transform 300ms ease" }}
+          style={{
+            left: infoOpen ? "0px" : "-320px",
+            transition: "left 250ms cubic-bezier(.4,0,.2,1)",
+          }}
         >
-          <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/10 p-4 w-72 mb-12">
+          <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/10 p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-ink-primary text-sm">Om denne POC-en</h3>
               <button
@@ -333,8 +336,8 @@ export default function Home() {
             </div>
             <p className="text-xs text-ink-primary/70 leading-relaxed mb-3">
               Ruter Reisetid er en proof-of-concept laget av{" "}
-              <strong>Arild Andersen</strong> i{" "}
-              <strong>Tet Digital</strong>. Appen viser isokron-kart — altså
+              <a href="mailto:arild.andersen@tetdigital.no" className="text-[#091AA9] no-underline hover:underline underline-offset-2 transition-all">Arild Andersen</a> i{" "}
+              <a href="https://tetdigital.no" target="_blank" rel="noopener noreferrer" className="text-[#091AA9] no-underline hover:underline underline-offset-2 transition-all">Tet Digital</a>. Appen viser isokron-kart — altså
               hvor langt du kan reise med kollektivtransport innen en gitt tid.
             </p>
 
