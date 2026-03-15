@@ -125,9 +125,11 @@ export function MapView({
     const el = document.createElement("div");
     el.className = "user-location-marker";
     el.innerHTML = `
-      <div class="user-location-cone"></div>
-      <div class="user-location-pulse"></div>
-      <div class="user-location-dot"></div>
+      <div class="user-location-inner">
+        <div class="user-location-cone"></div>
+        <div class="user-location-pulse"></div>
+        <div class="user-location-dot"></div>
+      </div>
     `;
     userMarker.current = new maplibre.Marker({ element: el })
       .setLngLat([lng, lat])
@@ -511,11 +513,12 @@ export function MapView({
     createUserMarker(userLocation.lng, userLocation.lat);
     const el = userMarker.current?.getElement();
     if (!el) return;
+    const inner = el.querySelector(".user-location-inner") as HTMLElement | null;
     if (userHeading != null) {
-      el.style.transform = `rotate(${userHeading}deg)`;
+      if (inner) inner.style.transform = `rotate(${userHeading}deg)`;
       el.classList.add("has-heading");
     } else {
-      el.style.transform = "";
+      if (inner) inner.style.transform = "";
       el.classList.remove("has-heading");
     }
   }, [userLocation, userHeading, createUserMarker]);

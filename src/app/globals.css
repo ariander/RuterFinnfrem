@@ -147,6 +147,10 @@
   position: relative;
   width: 44px;
   height: 44px;
+}
+.user-location-inner {
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -189,7 +193,7 @@
   opacity: 0;
   transition: opacity 0.3s;
 }
-.user-location-marker.has-heading .user-location-cone {
+.user-location-marker.has-heading .user-location-inner .user-location-cone {
   opacity: 1;
 }
 
