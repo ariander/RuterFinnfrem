@@ -270,7 +270,7 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
         type: "symbol",
         source: "stops",
         filter: ["all", ["!", ["has", "point_count"]], ["==", ["get", "modeIndex"], 0]],
-        minzoom: 15,
+        minzoom: 13,
         layout: {
           "text-field": ["get", "name"],
           "text-font": ["TID UI Regular"],

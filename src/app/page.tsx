@@ -34,6 +34,9 @@ export default function Home() {
   const loadingShowRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadingLeaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Info popup state
+  const [infoOpen, setInfoOpen] = useState(false);
+
   // Ferry warning toast state
   const [ferryWarning, setFerryWarning] = useState(false);
   const [ferryLeaving, setFerryLeaving] = useState(false);
@@ -177,8 +180,26 @@ export default function Home() {
     };
   }, [location, dismissFerry]);
 
+  // ── Accumulated stops cache ─────────────────────────────────────
+  // Stops are merged into a Map keyed by ID so panning never loses
+  // previously-loaded stops.  The fetch radius (3 km) is larger than
+  // the viewport to prefetch surrounding areas.
+  const stopsCacheRef = useRef<Map<string, Stop>>(new Map());
+
   const handleViewChange = useCallback((lat: number, lng: number) => {
-    getNearbyStops(lat, lng).then(setStops).catch(console.error);
+    getNearbyStops(lat, lng, 8000).then((newStops) => {
+      const cache = stopsCacheRef.current;
+      let changed = false;
+      for (const s of newStops) {
+        if (!cache.has(s.id)) {
+          cache.set(s.id, s);
+          changed = true;
+        }
+      }
+      if (changed) {
+        setStops(Array.from(cache.values()));
+      }
+    }).catch(console.error);
   }, []);
 
   const handleMapClick = (lat: number, lng: number) =>
@@ -282,6 +303,104 @@ export default function Home() {
           </div>
         </div>
       )}
+      {/* ── Info popup (bottom-left) ─────────────────────────────────── */}
+      <div
+        className="fixed z-[120]"
+        style={{
+          left: "calc(env(safe-area-inset-left, 0px) + 1rem)",
+          bottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)",
+        }}
+      >
+        {/* Expanded info box */}
+        <div
+          className={`absolute bottom-0 left-0 origin-bottom-left ${
+            infoOpen
+              ? "opacity-100 scale-100 pointer-events-auto"
+              : "opacity-0 scale-75 pointer-events-none"
+          }`}
+          style={{ transition: "opacity 300ms ease, transform 300ms ease" }}
+        >
+          <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/10 p-4 w-72 mb-12">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-ink-primary text-sm">Om denne POC-en</h3>
+              <button
+                onClick={() => setInfoOpen(false)}
+                className="text-ink-primary/30 hover:text-ink-primary/60 transition-colors text-lg leading-none"
+                aria-label="Lukk"
+              >
+                ×
+              </button>
+            </div>
+            <p className="text-xs text-ink-primary/70 leading-relaxed mb-3">
+              Ruter Reisetid er en proof-of-concept laget av{" "}
+              <strong>Arild Andersen</strong> i{" "}
+              <strong>Tet Digital</strong>. Appen viser isokron-kart — altså
+              hvor langt du kan reise med kollektivtransport innen en gitt tid.
+            </p>
+
+            <h4 className="font-medium text-ink-primary text-xs mb-1.5">API-er</h4>
+            <ul className="text-xs text-ink-primary/70 leading-relaxed mb-3 space-y-0.5">
+              <li className="flex gap-1.5">
+                <span className="shrink-0">•</span>
+                <span><strong>Targomo</strong> — isokronberegning (polygon)</span>
+              </li>
+              <li className="flex gap-1.5">
+                <span className="shrink-0">•</span>
+                <span><strong>Entur</strong> — holdeplasser, fergeruter og stedsøk</span>
+              </li>
+              <li className="flex gap-1.5">
+                <span className="shrink-0">•</span>
+                <span><strong>MapLibre GL</strong> — kartvisning (OpenMapTiles)</span>
+              </li>
+            </ul>
+
+            <h4 className="font-medium text-ink-primary text-xs mb-1.5">Forutsetninger</h4>
+            <ul className="text-xs text-ink-primary/70 leading-relaxed space-y-0.5">
+              <li className="flex gap-1.5">
+                <span className="shrink-0">•</span>
+                <span>Avgang neste ukedag kl. 16:00 (ettermiddagsrush)</span>
+              </li>
+              <li className="flex gap-1.5">
+                <span className="shrink-0">•</span>
+                <span>45 min. avgangsvindu (beste forbindelse innen vinduet)</span>
+              </li>
+              <li className="flex gap-1.5">
+                <span className="shrink-0">•</span>
+                <span>Ganghastighet: ~5 km/t (Targomo standard)</span>
+              </li>
+              <li className="flex gap-1.5">
+                <span className="shrink-0">•</span>
+                <span>Sparkesykkel modellert som 3× ganghastighet</span>
+              </li>
+              <li className="flex gap-1.5">
+                <span className="shrink-0">•</span>
+                <span>Fergeberegning kun kalibrert for Oslofjorden</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Toggle button */}
+        <button
+          onClick={() => setInfoOpen((o) => !o)}
+          className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 ${
+            infoOpen
+              ? "bg-[#313663] scale-95"
+              : "bg-white/85 backdrop-blur-xl hover:bg-white active:scale-95"
+          }`}
+          aria-label="POC info"
+        >
+          <img
+            src="/info.svg"
+            alt=""
+            width={20}
+            height={20}
+            className={`transition-all duration-200 ${
+              infoOpen ? "brightness-0 invert" : "opacity-60"
+            }`}
+          />
+        </button>
+      </div>
     </main>
   );
 }

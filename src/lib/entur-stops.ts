@@ -13,7 +13,7 @@ export async function getNearbyStops(lat: number, lng: number, distance = 1500):
       longitude: ${lng}
       maximumDistance: ${distance}
       filterByPlaceTypes: [stopPlace]
-      maximumResults: 60
+      maximumResults: 200
     ) {
       edges {
         node {
