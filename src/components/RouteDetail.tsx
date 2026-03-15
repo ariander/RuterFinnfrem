@@ -3,13 +3,15 @@
 import { useState, useEffect, useRef } from "react";
 import { ChevronLeft, ChevronDown } from "lucide-react";
 import type { TripPattern } from "@/lib/entur-trip";
-import { getModeColor, formatTime, formatDuration, getModeName } from "@/lib/entur-trip";
+import { getModeColor, formatTime, formatDuration, getModeName, type Situation } from "@/lib/entur-trip";
 
 interface RouteDetailProps {
   trip: TripPattern;
   destinationName: string;
   onBack: () => void;
   onMinimizedChange?: (minimized: boolean) => void;
+  /** Real-time occupancy keyed by serviceJourneyId */
+  occupancy?: Record<string, string>;
 }
 
 function getActiveLegIndex(trip: TripPattern, now: number): number | null {
@@ -31,7 +33,21 @@ function stopName(name: string, fallback: string): string {
   return name;
 }
 
-export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange }: RouteDetailProps) {
+function occupancyInfo(status: string): { icon: string; label: string } | null {
+  if (status === "EMPTY" || status === "MANY_SEATS_AVAILABLE")
+    return { icon: "/Capacity_empty.svg", label: "God plass" };
+  if (status === "FEW_SEATS_AVAILABLE")
+    return { icon: "/Capacity_ok.svg", label: "Noen seter" };
+  if (
+    status === "STANDING_ROOM_ONLY" ||
+    status === "CRUSHED_STANDING_ROOM_ONLY" ||
+    status === "FULL" ||
+    status === "NOT_ACCEPTING_PASSENGERS"
+  ) return { icon: "/Capacity_full.svg", label: "Fullt" };
+  return null;
+}
+
+export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, occupancy }: RouteDetailProps) {
   const [expandedLegs, setExpandedLegs] = useState<Set<number>>(new Set());
   const [minimized, setMinimized] = useState(false);
 
@@ -69,6 +85,20 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange }
   }
 
   const lastLeg = trip.legs[trip.legs.length - 1];
+
+  // Collect all unique situations from legs (prefer Norwegian)
+  const allSituations = trip.legs
+    .flatMap((l) => l.situations ?? [])
+    .filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i);
+
+  function pickText(texts: { value: string; language: string }[]): string {
+    return (
+      texts.find((t) => t.language === "no")?.value ??
+      texts.find((t) => t.language === "nb")?.value ??
+      texts[0]?.value ??
+      ""
+    );
+  }
 
   // What to show in minimized header
   const focusLegIndex = activeLegIndex !== null
@@ -154,6 +184,36 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange }
             />
           </button>
         </div>
+
+        {/* Disruption alerts */}
+        {allSituations.length > 0 && !minimized && (
+          <div className="border-b border-amber-200/80">
+            {allSituations.map((s) => {
+              const summary = pickText(s.summary);
+              const description = pickText(s.description);
+              return (
+                <div
+                  key={s.id}
+                  className="flex gap-2.5 px-3 py-2.5 bg-amber-50/90"
+                >
+                  <img src="/warning.svg" width={18} height={18} className="shrink-0 mt-0.5 opacity-80" alt="" />
+                  <div className="flex-1 min-w-0">
+                    {summary && (
+                      <p className="text-xs font-semibold leading-snug" style={{ color: "#313663" }}>
+                        {summary}
+                      </p>
+                    )}
+                    {description && description !== summary && (
+                      <p className="text-xs leading-snug mt-0.5" style={{ color: "#313663", opacity: 0.75 }}>
+                        {description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Timeline */}
         <div
@@ -279,7 +339,12 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange }
                     )}
 
                     {/* Transit */}
-                    {!isWalk && (
+                    {!isWalk && (() => {
+                      const occStatus =
+                        leg.occupancy ??
+                        (leg.serviceJourney?.id ? occupancy?.[leg.serviceJourney.id] : undefined);
+                      const occInfo = occStatus ? occupancyInfo(occStatus) : null;
+                      return (
                       <div className="mb-1">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span
@@ -305,6 +370,12 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange }
                             </span>
                           )}
                         </div>
+                        {occInfo && (
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <img src={occInfo.icon} width={13} height={13} alt="" className="opacity-70" />
+                            <span className="text-[11px]" style={{ color: "#313663", opacity: 0.6 }}>{occInfo.label}</span>
+                          </div>
+                        )}
 
                         {intermediates.length > 0 && (
                           <button
@@ -365,7 +436,8 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange }
                           </div>
                         </div>
                       </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 </div>
               );

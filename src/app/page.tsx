@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Search } from "lucide-react";
 import { MapView } from "@/components/Map";
 import { SearchBar, type SearchBarRef } from "@/components/SearchBar";
 import { RoutePanel } from "@/components/RoutePanel";
 import { RouteDetail } from "@/components/RouteDetail";
-import { searchTrip, searchWalkRoute, type TripPattern } from "@/lib/entur-trip";
+import { searchTrip, searchWalkRoute, formatDuration, getModeColor, type TripPattern } from "@/lib/entur-trip";
 import { getNearbyStops, type Stop } from "@/lib/entur-stops";
 
 export default function Home() {
@@ -108,16 +108,16 @@ export default function Home() {
     };
   }, [userLocation, destination]);
 
-  // Fetch walk route when no transit routes available
+  // Fetch walk route whenever destination changes (for walk/bike alternatives + walk-only panel)
   useEffect(() => {
-    if (!walkOnly || !userLocation || !destination) {
+    if (!userLocation || !destination) {
       setWalkRoute(null);
       return;
     }
     searchWalkRoute(userLocation, destination)
       .then(setWalkRoute)
       .catch(console.error);
-  }, [walkOnly, userLocation, destination]);
+  }, [destination]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Periodic route refresh when detail is open
   useEffect(() => {
@@ -207,12 +207,39 @@ export default function Home() {
   }, []);
 
   const [routeDetailMinimized, setRouteDetailMinimized] = useState(false);
+  const [vehicleOccupancy, setVehicleOccupancy] = useState<Record<string, string>>({});
+
+  const handleVehicleUpdate = useCallback(
+    (positions: Array<{ serviceJourneyId: string; occupancyStatus?: string }>) => {
+      setVehicleOccupancy((prev) => {
+        const next = { ...prev };
+        for (const p of positions) {
+          if (p.occupancyStatus) next[p.serviceJourneyId] = p.occupancyStatus;
+          else delete next[p.serviceJourneyId];
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
   const handleRouteSelect = useCallback((i: number) => {
     setSelectedRoute(i);
     setExpandedRoute(i);
     setRouteDetailMinimized(false);
   }, []);
+
+  const vehicleLegs = useMemo(() => {
+    if (expandedRoute === null || !routes[expandedRoute]) return undefined;
+    return routes[expandedRoute].legs
+      .filter(l => l.mode !== "foot" && l.serviceJourney?.id)
+      .map(l => ({
+        serviceJourneyId: l.serviceJourney!.id,
+        mode: l.mode,
+        transportSubmode: l.transportSubmode,
+        color: getModeColor(l.mode),
+      }));
+  }, [expandedRoute, routes]);
 
   return (
     <main className="fixed inset-0">
@@ -308,6 +335,8 @@ export default function Home() {
         userHeading={userHeading}
         onViewChange={handleViewChange}
         onStopClick={handleDestinationSelect}
+        vehicleLegs={vehicleLegs}
+        onVehicleUpdate={handleVehicleUpdate}
       />
 
       {/* Route panel / detail */}
@@ -316,6 +345,7 @@ export default function Home() {
           routes={routes}
           selectedIndex={selectedRoute}
           onSelect={handleRouteSelect}
+          walkRoute={walkRoute ?? undefined}
         />
       )}
       {routes.length > 0 && expandedRoute !== null && (
@@ -324,6 +354,7 @@ export default function Home() {
           destinationName={destination?.name ?? ""}
           onBack={() => setExpandedRoute(null)}
           onMinimizedChange={setRouteDetailMinimized}
+          occupancy={vehicleOccupancy}
         />
       )}
 
@@ -345,8 +376,9 @@ export default function Home() {
             {(() => {
               const leg = walkRoute?.legs?.[0];
               const distM = leg?.distance ?? walkRoute?.walkDistance ?? 0;
-              const walkMins = leg ? Math.round(leg.duration / 60) : null;
-              const bikeMins = distM > 0 ? Math.max(1, Math.round(distM / 250)) : null; // ~15 km/h
+              const walkDuration = leg ? formatDuration(leg.duration) : null;
+              const bikeSeconds = distM > 0 ? Math.max(60, Math.round(distM / (15000 / 3600))) : null; // ~15 km/h
+              const bikeDuration = bikeSeconds ? formatDuration(bikeSeconds) : null;
               const distKm = distM > 0 ? (distM / 1000).toFixed(1) : null;
 
               return (
@@ -356,7 +388,7 @@ export default function Home() {
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <span className="text-lg font-bold text-ink-primary">
-                          {walkMins != null ? `${walkMins} min` : "—"}
+                          {walkDuration ?? "—"}
                         </span>
                         {distKm && (
                           <span className="text-xs text-ink-primary/50">{distKm} km</span>
@@ -381,12 +413,12 @@ export default function Home() {
                   </div>
 
                   {/* Bike row */}
-                  {bikeMins != null && (
+                  {bikeDuration != null && (
                     <div className="px-4 py-3">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <span className="text-lg font-bold text-ink-primary">
-                            {bikeMins} min
+                            {bikeDuration}
                           </span>
                           {distKm && (
                             <span className="text-xs text-ink-primary/50">{distKm} km</span>

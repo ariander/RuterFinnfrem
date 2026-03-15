@@ -1,11 +1,67 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { MapView } from "@/components/Map";
 import { RoutePanel } from "@/components/RoutePanel";
 import { RouteDetail } from "@/components/RouteDetail";
 import { searchTrip, type TripPattern } from "@/lib/entur-trip";
 import { getNearbyStops, type Stop } from "@/lib/entur-stops";
+
+// ── Fake vehicles scattered around the simulated route ─────────────────────
+const FAKE_VEHICLES = [
+  {
+    id: "fake-metro-1",
+    lat: 59.9138, lng: 10.7375, // Stortinget T-bane
+    bearing: 88,
+    mode: "metro",
+    occupancyStatus: "FEW_SEATS_AVAILABLE",
+  },
+  {
+    id: "fake-bus-37",
+    lat: 59.9065, lng: 10.7730, // Schweigaardsgate
+    bearing: 100,
+    mode: "bus",
+    occupancyStatus: "STANDING_ROOM_ONLY",
+  },
+  {
+    id: "fake-tram-12",
+    lat: 59.9195, lng: 10.7310, // Majorstuen-retning
+    bearing: 145,
+    mode: "tram",
+    occupancyStatus: "MANY_SEATS_AVAILABLE",
+  },
+  {
+    id: "fake-bus-30",
+    lat: 59.9155, lng: 10.7155, // Frogner
+    bearing: 60,
+    mode: "bus",
+    occupancyStatus: "FULL",
+  },
+];
+
+// ── Fake occupancy to inject by transit mode order ─────────────────────────
+const FAKE_OCCUPANCY_BY_MODE: Record<string, string> = {
+  metro: "FEW_SEATS_AVAILABLE",
+  bus: "STANDING_ROOM_ONLY",
+  tram: "MANY_SEATS_AVAILABLE",
+  rail: "FEW_SEATS_AVAILABLE",
+  water: "MANY_SEATS_AVAILABLE",
+  coach: "FEW_SEATS_AVAILABLE",
+};
+
+// ── Fake situations to inject into the first transit leg ───────────────────
+const FAKE_SITUATIONS = [
+  {
+    id: "fake-sit-1",
+    summary: [{ value: "Forsinkelser på linje 3", language: "no" }],
+    description: [{ value: "Signalfeil ved Majorstuen medfører inntil 8 minutters forsinkelse mot sentrum.", language: "no" }],
+  },
+  {
+    id: "fake-sit-2",
+    summary: [{ value: "Begrenset fremkommelighet ved Jernbanetorget", language: "no" }],
+    description: [{ value: "Veiarbeid gjør at bussavganger kan avvike fra ruten.", language: "no" }],
+  },
+];
 
 // Simulert reise: Frogner → gange → Nationaltheatret T-bane → T-bane 3 →
 // Jernbanetorget → gange → Buss 37 → Helsfyr (glemt å gå av!) → Bryn
@@ -83,6 +139,7 @@ export default function FakePage() {
   const [routes, setRoutes] = useState<TripPattern[]>([]);
   const [selectedRoute, setSelectedRoute] = useState(0);
   const [expandedRoute, setExpandedRoute] = useState<number | null>(null);
+  const [routeDetailMinimized, setRouteDetailMinimized] = useState(false);
   const [stops, setStops] = useState<Stop[]>([]);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -117,7 +174,29 @@ export default function FakePage() {
     if (key === lastFetchRef.current) return;
     lastFetchRef.current = key;
     searchTrip(userLocation, destination, 3)
-      .then((trips) => { setRoutes(trips); setSelectedRoute(0); })
+      .then((trips) => {
+        // Inject fake situations into transit legs of the first trip
+        const patched = trips.map((trip, ti) => {
+          if (ti !== 0) return trip;
+          let sitIdx = 0;
+          return {
+            ...trip,
+            legs: trip.legs.map((leg) => {
+              if (leg.mode === "foot") return leg;
+              const patchedLeg = {
+                ...leg,
+                occupancy: FAKE_OCCUPANCY_BY_MODE[leg.mode],
+              };
+              if (sitIdx < FAKE_SITUATIONS.length) {
+                patchedLeg.situations = [FAKE_SITUATIONS[sitIdx++]];
+              }
+              return patchedLeg;
+            }),
+          };
+        });
+        setRoutes(patched);
+        setSelectedRoute(0);
+      })
       .catch(console.error);
   }, [userLocation]);
 
@@ -149,12 +228,26 @@ export default function FakePage() {
       .catch(console.error);
   }, []);
 
+  // vehicleLegs from the expanded route (for real polling if serviceJourneys exist)
+  const vehicleLegs = useMemo(() => {
+    if (expandedRoute === null || !routes[expandedRoute]) return undefined;
+    return routes[expandedRoute].legs
+      .filter(l => l.mode !== "foot" && l.serviceJourney?.id)
+      .map(l => ({
+        serviceJourneyId: l.serviceJourney!.id,
+        mode: l.mode,
+        transportSubmode: l.transportSubmode,
+        color: "#E60000",
+      }));
+  }, [expandedRoute, routes]);
+
   function reset() {
     setSimTime(0);
     setRunning(false);
     setDone(false);
     setRoutes([]);
     setExpandedRoute(null);
+    setRouteDetailMinimized(false);
     lastFetchRef.current = "";
   }
 
@@ -170,7 +263,10 @@ export default function FakePage() {
         selectedRouteIndex={selectedRoute}
         stops={stops}
         centerOnUser={expandedRoute !== null}
+        detailMinimized={routeDetailMinimized}
         onViewChange={handleViewChange}
+        vehicleLegs={vehicleLegs}
+        fakeVehicles={FAKE_VEHICLES}
       />
 
       {routes.length > 0 && expandedRoute === null && (
@@ -185,6 +281,7 @@ export default function FakePage() {
           trip={routes[expandedRoute] ?? routes[0]}
           destinationName={destination.name}
           onBack={() => setExpandedRoute(null)}
+          onMinimizedChange={setRouteDetailMinimized}
         />
       )}
 

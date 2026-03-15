@@ -26,6 +26,14 @@ export interface Leg {
   intermediateEstimatedCalls?: EstimatedCall[];
   pointsOnLink?: { points: string };
   serviceJourney?: { id: string };
+  situations?: Situation[];
+  occupancy?: string; // runtime-only: from vehicles API, not GraphQL
+}
+
+export interface Situation {
+  id: string;
+  summary: { value: string; language: string }[];
+  description: { value: string; language: string }[];
 }
 
 export interface Place {
@@ -129,6 +137,11 @@ export async function searchTrip(
           }
           pointsOnLink { points }
           serviceJourney { id }
+          situations {
+            id
+            summary { value language }
+            description { value language }
+          }
         }
       }
     }

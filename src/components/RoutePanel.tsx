@@ -3,10 +3,14 @@
 import type { TripPattern, Leg } from "@/lib/entur-trip";
 import { getModeColor, formatTime, formatDuration, getModeName } from "@/lib/entur-trip";
 
+const WALK_MAX_SECS = 900;  // 15 min
+const BIKE_SPEED_MS = 15000 / 3600; // 15 km/h in m/s
+
 interface RoutePanelProps {
   routes: TripPattern[];
   selectedIndex: number;
   onSelect: (index: number) => void;
+  walkRoute?: TripPattern;
 }
 
 function LegBar({ legs }: { legs: Leg[] }) {
@@ -84,10 +88,18 @@ function RealtimeBadge() {
   );
 }
 
-export function RoutePanel({ routes, selectedIndex, onSelect }: RoutePanelProps) {
+export function RoutePanel({ routes, selectedIndex, onSelect, walkRoute }: RoutePanelProps) {
   if (routes.length === 0) return null;
 
   const hasRealtime = (trip: TripPattern) => trip.legs.some((l) => l.realtime);
+
+  // Walk/bike alternatives — only show if ≤ 15 min
+  const walkLeg = walkRoute?.legs?.[0];
+  const distM = walkLeg?.distance ?? 0;
+  const walkSecs = walkLeg?.duration ?? 0;
+  const bikeSecs = distM > 0 ? Math.max(60, Math.round(distM / BIKE_SPEED_MS)) : 0;
+  const showWalk = walkSecs > 0 && walkSecs <= WALK_MAX_SECS;
+  const showBike = bikeSecs > 0 && bikeSecs <= WALK_MAX_SECS;
 
   return (
     <div
@@ -104,6 +116,7 @@ export function RoutePanel({ routes, selectedIndex, onSelect }: RoutePanelProps)
 
         <div className="max-h-64 overflow-y-auto">
           {routes.map((trip, i) => {
+
             const isSelected = i === selectedIndex;
             const transfers = trip.legs.filter((l) => l.mode !== "foot").length - 1;
 
@@ -147,6 +160,62 @@ export function RoutePanel({ routes, selectedIndex, onSelect }: RoutePanelProps)
               </button>
             );
           })}
+
+          {/* Walk / bike alternatives */}
+          {(showWalk || showBike) && (
+            <div className="border-t border-ink-primary/8">
+              <div className="px-4 pt-2.5 pb-1">
+                <span className="text-[11px] font-medium text-ink-primary/40 uppercase tracking-wide">Eller på egenhånd</span>
+              </div>
+
+              {showWalk && (
+                <div className="px-4 py-2.5 border-t border-ink-primary/5">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-base font-bold text-ink-primary">
+                      {formatDuration(walkSecs)}
+                    </span>
+                    <span className="text-xs text-ink-primary/40">
+                      {distM > 0 ? `${(distM / 1000).toFixed(1)} km` : ""}
+                    </span>
+                  </div>
+                  <div className="h-3 rounded overflow-hidden mb-2">
+                    <div
+                      className="h-full w-full rounded"
+                      style={{
+                        backgroundImage:
+                          "repeating-linear-gradient(90deg, #9CA3AF 0px, #9CA3AF 4px, transparent 4px, transparent 8px)",
+                      }}
+                    />
+                  </div>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold text-white bg-[#6B7280]">
+                    🚶 Gange
+                  </span>
+                </div>
+              )}
+
+              {showBike && (
+                <div className="px-4 py-2.5 border-t border-ink-primary/5">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-base font-bold text-ink-primary">
+                      {formatDuration(bikeSecs)}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {distM > 0 && (
+                        <span className="text-xs text-ink-primary/40">
+                          {(distM / 1000).toFixed(1)} km
+                        </span>
+                      )}
+                      <span className="text-[10px] text-ink-primary/35">estimert</span>
+                    </div>
+                  </div>
+                  <div className="h-3 rounded overflow-hidden mb-2 bg-[#0891b2]" />
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold text-white bg-[#0891b2]">
+                    🚲 Sykkel
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
