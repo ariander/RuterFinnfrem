@@ -17,20 +17,24 @@ const TRANSIT_BADGE: Record<string, { icon: string; color: string }> = {
   airport:       { icon: "/icons/bus.svg",   color: "#003087" },
 };
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  museum:           "🏛️",
-  cafe:             "☕",
-  restaurant:       "🍽️",
-  school:           "🎓",
-  place_of_worship: "⛪",
-  government:       "🏛️",
-  dentist:          "🦷",
-  hospital:         "🏥",
-  pharmacy:         "💊",
-  park:             "🌳",
-  airport:          "✈️",
-  street:           "🛣️",
-  bydel:            "📍",
+type CategoryIcon =
+  | { type: "emoji"; value: string }
+  | { type: "svg"; src: string };
+
+const CATEGORY_ICON: Record<string, CategoryIcon> = {
+  museum:           { type: "emoji", value: "🏛️" },
+  cafe:             { type: "emoji", value: "☕" },
+  restaurant:       { type: "emoji", value: "🍽️" },
+  school:           { type: "emoji", value: "🎓" },
+  place_of_worship: { type: "emoji", value: "⛪" },
+  government:       { type: "emoji", value: "🏛️" },
+  dentist:          { type: "emoji", value: "🦷" },
+  hospital:         { type: "emoji", value: "🏥" },
+  pharmacy:         { type: "emoji", value: "💊" },
+  park:             { type: "emoji", value: "🌳" },
+  airport:          { type: "emoji", value: "✈️" },
+  street:           { type: "svg",   src: "/road.svg" },
+  bydel:            { type: "emoji", value: "📍" },
 };
 
 function getStopBadge(categories: string[] | undefined) {
@@ -41,10 +45,10 @@ function getStopBadge(categories: string[] | undefined) {
   return null;
 }
 
-function getCategoryEmoji(categories: string[] | undefined): string | null {
+function getCategoryIcon(categories: string[] | undefined): CategoryIcon | null {
   if (!categories) return null;
   for (const cat of categories) {
-    if (CATEGORY_EMOJI[cat]) return CATEGORY_EMOJI[cat];
+    if (CATEGORY_ICON[cat]) return CATEGORY_ICON[cat];
   }
   return null;
 }
@@ -127,7 +131,7 @@ export function SearchBar({ onSelect }: SearchBarProps) {
         <Card className="absolute top-full gap-1 mt-0 w-full bg-white shadow-2xl rounded-lg overflow-hidden border-none py-3 max-h-96 overflow-y-auto z-50">
           {results.map((res: any) => {
             const stopBadge = getStopBadge(res.properties.category);
-            const emoji = !stopBadge ? getCategoryEmoji(res.properties.category) : null;
+            const catIcon = !stopBadge ? getCategoryIcon(res.properties.category) : null;
 
             return (
               <button
@@ -150,9 +154,13 @@ export function SearchBar({ onSelect }: SearchBarProps) {
                   >
                     <img src={stopBadge.icon} width={16} height={16} alt="" />
                   </span>
-                ) : emoji ? (
+                ) : catIcon?.type === "emoji" ? (
                   <span className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center bg-ink-primary/5 text-base leading-none">
-                    {emoji}
+                    {catIcon.value}
+                  </span>
+                ) : catIcon?.type === "svg" ? (
+                  <span className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center bg-ink-primary/5">
+                    <img src={catIcon.src} width={16} height={16} alt="" className="opacity-60" />
                   </span>
                 ) : (
                   <span className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center bg-ink-primary/5">
