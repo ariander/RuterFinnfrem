@@ -180,15 +180,35 @@
   touch-action: manipulation;
 }
 
-/* Search panel: bottom on mobile, top on desktop */
-.search-panel {
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
-  top: auto;
-  transform: translateX(-50%);
+/* Fake search trigger — bottom on mobile, hidden on desktop */
+.search-trigger {
+  transition: opacity 0.2s ease;
+}
+.search-trigger.search-trigger-hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 @media (hover: hover) and (pointer: fine) {
-  .search-panel {
-    bottom: auto;
-    top: calc(env(safe-area-inset-top, 0px) + 1rem);
+  .search-trigger {
+    display: none;
+  }
+}
+
+/* Real search panel — top always, hidden on mobile until opened */
+.search-real {
+  top: calc(env(safe-area-inset-top, 0px) + 1rem);
+  transform: translateX(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.search-real.search-real-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: hover) and (pointer: fine) {
+  .search-real {
+    opacity: 1;
+    pointer-events: auto;
   }
 }

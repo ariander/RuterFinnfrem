@@ -56,9 +56,11 @@ function getCategoryIcon(categories: string[] | undefined): CategoryIcon | null 
 interface SearchBarProps {
   onSelect: (location: { lat: number; lng: number; name: string }) => void;
   onClear?: () => void;
+  shouldFocus?: boolean;
+  onClose?: () => void;
 }
 
-export function SearchBar({ onSelect, onClear }: SearchBarProps) {
+export function SearchBar({ onSelect, onClear, shouldFocus, onClose }: SearchBarProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -104,16 +106,24 @@ export function SearchBar({ onSelect, onClear }: SearchBarProps) {
     };
   }, [query]);
 
+  // Focus input when shouldFocus becomes true
+  useEffect(() => {
+    if (shouldFocus) {
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [shouldFocus]);
+
   // Close dropdown on click outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
+        onClose?.();
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [onClose]);
 
   function handleClear() {
     setQuery("");
@@ -212,6 +222,7 @@ export function SearchBar({ onSelect, onClear }: SearchBarProps) {
             } else if (e.key === "Escape") {
               setIsOpen(false);
               inputRef.current?.blur();
+              onClose?.();
             }
           }}
         />

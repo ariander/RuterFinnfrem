@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Search } from "lucide-react";
 import { MapView } from "@/components/Map";
 import { SearchBar } from "@/components/SearchBar";
 import { RoutePanel } from "@/components/RoutePanel";
@@ -14,6 +15,7 @@ export default function Home() {
   const [routes, setRoutes] = useState<TripPattern[]>([]);
   const [selectedRoute, setSelectedRoute] = useState(0);
   const [expandedRoute, setExpandedRoute] = useState<number | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [stops, setStops] = useState<Stop[]>([]);
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -122,6 +124,7 @@ export default function Home() {
   const handleDestinationSelect = useCallback(
     (loc: { lat: number; lng: number; name: string }) => {
       setDestination(loc);
+      setSearchOpen(false);
     },
     [],
   );
@@ -131,6 +134,7 @@ export default function Home() {
     setRoutes([]);
     setSelectedRoute(0);
     setExpandedRoute(null);
+    setSearchOpen(false);
   }, []);
 
   const handleRouteSelect = useCallback((i: number) => {
@@ -140,17 +144,36 @@ export default function Home() {
 
   return (
     <main className="fixed inset-0">
-      {/* Search panel — animates from bottom to top on focus */}
+      {/* Fake search trigger — mobile only, bottom, fades out when search opens */}
       {!destination && (
-        <div
-          className="search-panel fixed left-1/2 z-[110] w-full max-w-md px-4"
+        <button
+          onClick={() => setSearchOpen(true)}
+          className={`search-trigger fixed left-1/2 z-[110] w-full max-w-md px-4${searchOpen ? " search-trigger-hidden" : ""}`}
+          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)", transform: "translateX(-50%)" }}
         >
+          <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-lg px-4 h-[52px] flex items-center gap-3">
+            <Search size={16} className="text-ink-primary/50 shrink-0" />
+            <span className="text-sm text-ink-primary/40">Hvor vil du reise?</span>
+            <div
+              className={`ml-auto shrink-0 w-2 h-2 rounded-full transition-colors ${
+                userLocation ? "bg-emerald-500" : geoError ? "bg-red-400" : "bg-amber-400 animate-pulse"
+              }`}
+            />
+          </div>
+        </button>
+      )}
+
+      {/* Real search panel — top, hidden on mobile until trigger tapped */}
+      {!destination && (
+        <div className={`search-real fixed left-1/2 z-[110] w-full max-w-md px-4${searchOpen ? " search-real-open" : ""}`}>
           <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-lg px-3 py-2.5">
             <div className="flex items-center gap-2">
               <div className="flex-1">
                 <SearchBar
                   onSelect={handleDestinationSelect}
                   onClear={handleClearDestination}
+                  shouldFocus={searchOpen}
+                  onClose={() => setSearchOpen(false)}
                 />
               </div>
               <div
