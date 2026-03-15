@@ -116,7 +116,12 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange }
                   >
                     {nextTransitLeg.line?.publicCode || getModeName(nextTransitLeg.mode)}
                   </span>
-                  <span className="text-sm text-ink-primary/70 truncate">
+                  {nextTransitLeg.destinationDisplay?.frontText && (
+                    <span className="text-sm font-medium text-ink-primary truncate">
+                      {nextTransitLeg.destinationDisplay.frontText}
+                    </span>
+                  )}
+                  <span className="text-sm text-ink-primary/70 shrink-0">
                     {formatTime(nextTransitLeg.expectedStartTime)}
                     {nextTransitLeg.fromPlace.quay?.publicCode &&
                       ` · ${platformLabel(nextTransitLeg.mode, nextTransitLeg.fromPlace.quay.publicCode)}`}
@@ -292,9 +297,9 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange }
                           >
                             {leg.line?.publicCode || getModeName(leg.mode)}
                           </span>
-                          {leg.line?.name && (
-                            <span className="text-xs text-ink-primary/50 truncate">
-                              {leg.line.name}
+                          {leg.destinationDisplay?.frontText && (
+                            <span className="text-sm font-medium text-ink-primary truncate">
+                              {leg.destinationDisplay.frontText}
                             </span>
                           )}
                           {isActive && (
