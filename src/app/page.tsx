@@ -14,7 +14,6 @@ export default function Home() {
   const [routes, setRoutes] = useState<TripPattern[]>([]);
   const [selectedRoute, setSelectedRoute] = useState(0);
   const [expandedRoute, setExpandedRoute] = useState<number | null>(null);
-  const [searchFocused, setSearchFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [stops, setStops] = useState<Stop[]>([]);
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -123,7 +122,6 @@ export default function Home() {
   const handleDestinationSelect = useCallback(
     (loc: { lat: number; lng: number; name: string }) => {
       setDestination(loc);
-      setSearchFocused(false);
     },
     [],
   );
@@ -145,14 +143,14 @@ export default function Home() {
       {/* Search panel — animates from bottom to top on focus */}
       {!destination && (
         <div
-          className={`search-panel fixed left-1/2 z-[110] w-full max-w-md px-4 transition-[top,bottom] duration-300 ease-in-out${searchFocused ? " search-panel-focused" : ""}`}
+          className="search-panel fixed left-1/2 z-[110] w-full max-w-md px-4"
         >
           <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-lg px-3 py-2.5">
             <div className="flex items-center gap-2">
               <div className="flex-1">
                 <SearchBar
                   onSelect={handleDestinationSelect}
-                  onFocusChange={setSearchFocused}
+                  onClear={handleClearDestination}
                 />
               </div>
               <div

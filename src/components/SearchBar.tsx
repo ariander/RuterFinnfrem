@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 
 const TRANSIT_BADGE: Record<string, { icon: string; color: string }> = {
   onstreetBus:   { icon: "/icons/bus.svg",   color: "#E60000" },
@@ -55,10 +55,10 @@ function getCategoryIcon(categories: string[] | undefined): CategoryIcon | null 
 
 interface SearchBarProps {
   onSelect: (location: { lat: number; lng: number; name: string }) => void;
-  onFocusChange?: (focused: boolean) => void;
+  onClear?: () => void;
 }
 
-export function SearchBar({ onSelect, onFocusChange }: SearchBarProps) {
+export function SearchBar({ onSelect, onClear }: SearchBarProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -109,51 +109,25 @@ export function SearchBar({ onSelect, onFocusChange }: SearchBarProps) {
     function handleClickOutside(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
-        onFocusChange?.(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  function handleClear() {
+    setQuery("");
+    setResults([]);
+    setIsOpen(false);
+    inputRef.current?.focus();
+    onClear?.();
+  }
+
   return (
     <div className="relative flex-1" ref={containerRef}>
-      <div className="relative">
-        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-primary opacity-50">
-          <Search size={16} />
-        </div>
-        <Input
-          ref={inputRef}
-          placeholder="Hvor vil du reise?"
-          className="h-10 pl-9 pr-3 bg-transparent border-none shadow-none rounded-xl text-sm focus-visible:ring-0 placeholder:text-ink-primary/40"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => { setIsOpen(results.length > 0); onFocusChange?.(true); }}
-          onKeyDown={(e) => {
-            if (!isOpen || results.length === 0) return;
-            if (e.key === "ArrowDown") {
-              e.preventDefault();
-              const next = Math.min(highlightedIndex + 1, results.length - 1);
-              setHighlightedIndex(next);
-              itemRefs.current[next]?.scrollIntoView({ block: "nearest" });
-            } else if (e.key === "ArrowUp") {
-              e.preventDefault();
-              const prev = Math.max(highlightedIndex - 1, 0);
-              setHighlightedIndex(prev);
-              itemRefs.current[prev]?.scrollIntoView({ block: "nearest" });
-            } else if (e.key === "Enter" && highlightedIndex >= 0) {
-              e.preventDefault();
-              itemRefs.current[highlightedIndex]?.click();
-            } else if (e.key === "Escape") {
-              setIsOpen(false);
-              inputRef.current?.blur();
-            }
-          }}
-        />
-      </div>
-
+      {/* Results — opens upward */}
       {isOpen && (
-        <Card className="absolute top-full gap-1 mt-0 w-full bg-white shadow-2xl rounded-lg overflow-hidden border-none py-3 max-h-96 overflow-y-auto z-50">
+        <Card className="absolute bottom-full gap-1 mb-1 w-full bg-white shadow-2xl rounded-lg overflow-hidden border-none py-3 max-h-80 overflow-y-auto z-50">
           {results.map((res: any, idx: number) => {
             const stopBadge = getStopBadge(res.properties.category);
             const catIcon = !stopBadge ? getCategoryIcon(res.properties.category) : null;
@@ -207,6 +181,50 @@ export function SearchBar({ onSelect, onFocusChange }: SearchBarProps) {
           })}
         </Card>
       )}
+
+      {/* Input */}
+      <div className="relative">
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-primary opacity-50">
+          <Search size={16} />
+        </div>
+        <Input
+          ref={inputRef}
+          placeholder="Hvor vil du reise?"
+          className="h-10 pl-9 pr-9 bg-transparent border-none shadow-none rounded-xl text-sm focus-visible:ring-0 placeholder:text-ink-primary/40"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => setIsOpen(results.length > 0)}
+          onKeyDown={(e) => {
+            if (!isOpen || results.length === 0) return;
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              const next = Math.min(highlightedIndex + 1, results.length - 1);
+              setHighlightedIndex(next);
+              itemRefs.current[next]?.scrollIntoView({ block: "nearest" });
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              const prev = Math.max(highlightedIndex - 1, 0);
+              setHighlightedIndex(prev);
+              itemRefs.current[prev]?.scrollIntoView({ block: "nearest" });
+            } else if (e.key === "Enter" && highlightedIndex >= 0) {
+              e.preventDefault();
+              itemRefs.current[highlightedIndex]?.click();
+            } else if (e.key === "Escape") {
+              setIsOpen(false);
+              inputRef.current?.blur();
+            }
+          }}
+        />
+        {query.length > 0 && (
+          <button
+            onMouseDown={(e) => { e.preventDefault(); handleClear(); }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-primary/40 hover:text-ink-primary/70 transition-colors"
+            aria-label="Tøm søk"
+          >
+            <X size={16} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
