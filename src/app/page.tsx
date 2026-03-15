@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { MapView } from "@/components/Map";
 import { SearchBar } from "@/components/SearchBar";
 import { RoutePanel } from "@/components/RoutePanel";
+import { RouteDetail } from "@/components/RouteDetail";
 import { searchTrip, type TripPattern } from "@/lib/entur-trip";
 import { getNearbyStops, type Stop } from "@/lib/entur-stops";
 
@@ -12,6 +13,7 @@ export default function Home() {
   const [destination, setDestination] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [routes, setRoutes] = useState<TripPattern[]>([]);
   const [selectedRoute, setSelectedRoute] = useState(0);
+  const [expandedRoute, setExpandedRoute] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [stops, setStops] = useState<Stop[]>([]);
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -85,6 +87,20 @@ export default function Home() {
     };
   }, [userLocation, destination]);
 
+  // Periodic route refresh when detail is open
+  useEffect(() => {
+    if (expandedRoute === null || !userLocation || !destination) return;
+    const id = setInterval(async () => {
+      try {
+        const trips = await searchTrip(userLocation, destination, 5);
+        setRoutes(trips);
+      } catch (err) {
+        console.error("Route refresh error:", err);
+      }
+    }, 60_000);
+    return () => clearInterval(id);
+  }, [expandedRoute, userLocation, destination]);
+
   // Stops cache
   const stopsCacheRef = useRef<Map<string, Stop>>(new Map());
   const handleViewChange = useCallback((lat: number, lng: number) => {
@@ -114,6 +130,12 @@ export default function Home() {
     setDestination(null);
     setRoutes([]);
     setSelectedRoute(0);
+    setExpandedRoute(null);
+  }, []);
+
+  const handleRouteSelect = useCallback((i: number) => {
+    setSelectedRoute(i);
+    setExpandedRoute(i);
   }, []);
 
   return (
@@ -184,12 +206,19 @@ export default function Home() {
         onViewChange={handleViewChange}
       />
 
-      {/* Route panel */}
-      {routes.length > 0 && (
+      {/* Route panel / detail */}
+      {routes.length > 0 && expandedRoute === null && (
         <RoutePanel
           routes={routes}
           selectedIndex={selectedRoute}
-          onSelect={setSelectedRoute}
+          onSelect={handleRouteSelect}
+        />
+      )}
+      {routes.length > 0 && expandedRoute !== null && (
+        <RouteDetail
+          trip={routes[expandedRoute] ?? routes[0]}
+          destinationName={destination?.name ?? ""}
+          onBack={() => setExpandedRoute(null)}
         />
       )}
 

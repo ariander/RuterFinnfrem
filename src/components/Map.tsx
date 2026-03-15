@@ -334,7 +334,7 @@ export function MapView({
               id: `stops-dot-${modeCount}-${modeIndex}`,
               type: "circle",
               source: "stops-dots-src",
-              minzoom: 9,
+              minzoom: 11,
               maxzoom: 12,
               filter: ["all",
                 ["==", ["get", "modeCount"], modeCount],
