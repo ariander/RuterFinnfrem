@@ -145,8 +145,7 @@ export default function Home() {
       {/* Search panel — animates from bottom to top on focus */}
       {!destination && (
         <div
-          className={`search-panel fixed left-1/2 z-[110] w-full max-w-md px-4 transition-transform duration-300 ease-in-out${searchFocused ? " search-panel-focused" : ""}`}
-          style={{ top: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
+          className={`search-panel fixed left-1/2 z-[110] w-full max-w-md px-4 transition-[top,bottom] duration-300 ease-in-out${searchFocused ? " search-panel-focused" : ""}`}
         >
           <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-lg px-3 py-2.5">
             <div className="flex items-center gap-2">

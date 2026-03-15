@@ -180,16 +180,19 @@
   touch-action: manipulation;
 }
 
-/* Search panel: default bottom (mobile), top on desktop or when focused */
+/* Search panel: bottom on mobile, top on desktop or when focused */
 .search-panel {
-  transform: translateX(-50%) translateY(calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 5rem));
-}
-.search-panel.search-panel-focused,
-.search-panel.search-panel-desktop {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+  top: auto;
   transform: translateX(-50%);
+}
+.search-panel.search-panel-focused {
+  bottom: auto;
+  top: calc(env(safe-area-inset-top, 0px) + 1rem);
 }
 @media (hover: hover) and (pointer: fine) {
   .search-panel {
-    transform: translateX(-50%);
+    bottom: auto;
+    top: calc(env(safe-area-inset-top, 0px) + 1rem);
   }
 }
