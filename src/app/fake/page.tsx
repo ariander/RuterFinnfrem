@@ -7,34 +7,46 @@ import { RouteDetail } from "@/components/RouteDetail";
 import { searchTrip, type TripPattern } from "@/lib/entur-trip";
 import { getNearbyStops, type Stop } from "@/lib/entur-stops";
 
-// Simulated journey: Oslo S → walk → Jernbanetorget T-bane → T-bane 4 → Tøyen (miss!) → Carl Berner
-// Times in milliseconds of simulated real-world time
+// Simulert reise: Frogner → gange → Nationaltheatret T-bane → T-bane 3 →
+// Jernbanetorget → gange → Buss 37 → Helsfyr (glemt å gå av!) → Bryn
 const TRACK: [number, number, number][] = [
-  [59.9111, 10.7528,      0],  // Oslo S
-  [59.9116, 10.7522,  15_000], // Walking...
-  [59.9120, 10.7519,  30_000], // ...
-  [59.9126, 10.7519,  50_000], // Jernbanetorget T-bane (boarding)
-  [59.9128, 10.7530,  65_000], // Avgår
-  [59.9130, 10.7558,  85_000], // Under Grønland
-  [59.9131, 10.7610, 110_000], // Nærmer seg Tøyen
-  [59.9131, 10.7628, 130_000], // ← HER ER TØYEN — bør gå av!
-  [59.9135, 10.7660, 148_000], // Glemt å gå av, fortsetter...
-  [59.9143, 10.7712, 165_000], // Mot Carl Berners plass
-  [59.9157, 10.7760, 185_000], // Carl Berners plass
-  [59.9165, 10.7790, 210_000], // Etter Carl Berner
+  // Gange fra Frogner mot Nationaltheatret
+  [59.9220, 10.7198,      0],
+  [59.9205, 10.7220,  20_000],
+  [59.9185, 10.7245,  45_000],
+  [59.9168, 10.7262,  70_000], // Nationaltheatret T-bane (ankommer)
+  // Venter + avgår T-bane 3 mot sentrum
+  [59.9155, 10.7310, 100_000],
+  [59.9138, 10.7375, 120_000], // Stortinget T-bane
+  [59.9128, 10.7460, 140_000], // Mellom stopp
+  [59.9126, 10.7519, 158_000], // Jernbanetorget (bytte)
+  // Gange til bussholdeplass
+  [59.9118, 10.7548, 180_000],
+  [59.9108, 10.7572, 200_000], // Venter på buss 37
+  // Buss 37 østover
+  [59.9090, 10.7640, 225_000],
+  [59.9065, 10.7730, 250_000], // Schweigaardsgate
+  [59.9035, 10.7840, 275_000], // Nærmer seg Helsfyr
+  [59.9017, 10.7888, 295_000], // ← HELSFYR — gå av her!
+  // Glemt å gå av
+  [59.9005, 10.7940, 312_000],
+  [59.8985, 10.8010, 330_000], // Mot Bryn
+  [59.8960, 10.8070, 360_000], // Bryn
 ];
 
 const PHASES: { from: number; to: number; label: string }[] = [
-  { from:       0, to:  50_000, label: "🚶 Går til Jernbanetorget T-bane" },
-  { from:  50_000, to:  65_000, label: "⏳ Venter på T-bane 4" },
-  { from:  65_000, to: 128_000, label: "🚇 T-bane 4 mot Tøyen" },
-  { from: 128_000, to: 135_000, label: "📍 Tøyen — gå av her!" },
-  { from: 135_000, to: 210_000, label: "😅 Glemte å gå av... rute oppdateres" },
+  { from:       0, to:  70_000, label: "🚶 Går til Nationaltheatret T-bane" },
+  { from:  70_000, to: 100_000, label: "⏳ Venter på T-bane 3" },
+  { from: 100_000, to: 158_000, label: "🚇 T-bane 3 → Jernbanetorget" },
+  { from: 158_000, to: 200_000, label: "🚶 Bytter — går til buss 37" },
+  { from: 200_000, to: 290_000, label: "🚌 Buss 37 mot Helsfyr" },
+  { from: 290_000, to: 305_000, label: "📍 Helsfyr — gå av her!" },
+  { from: 305_000, to: 360_000, label: "😅 Glemte å gå av... rute oppdateres" },
 ];
 
-const DESTINATION = { lat: 59.9131, lng: 10.7628, name: "Tøyen T-banestasjon" };
+const DESTINATION = { lat: 59.9017, lng: 10.7888, name: "Helsfyr T-banestasjon" };
 const TOTAL_DURATION = TRACK[TRACK.length - 1][2];
-const SPEED = 5; // 5× real time → full journey in ~3.5 min wall time
+const SPEED = 5; // 5× real time → full journey i ~72 sek
 
 function interpolate(t: number): { lat: number; lng: number } {
   if (t <= TRACK[0][2]) return { lat: TRACK[0][0], lng: TRACK[0][1] };
