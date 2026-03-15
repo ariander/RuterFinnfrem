@@ -336,8 +336,8 @@ export default function Home() {
             </div>
             <p className="text-xs text-ink-primary/70 leading-relaxed mb-3">
               Ruter Reisetid er en proof-of-concept laget av{" "}
-              <a href="mailto:arild.andersen@tetdigital.no" className="text-[#091AA9] no-underline hover:underline underline-offset-2 transition-all">Arild Andersen</a> i{" "}
-              <a href="https://tetdigital.no" target="_blank" rel="noopener noreferrer" className="text-[#091AA9] no-underline hover:underline underline-offset-2 transition-all">Tet Digital</a>. Appen viser isokron-kart — altså
+              <a href="mailto:arild.andersen@tetdigital.no" className="text-[#091AA9] no-underline hover:underline underline-offset-2 transition-all duration-200">Arild Andersen</a> i{" "}
+              <a href="https://tetdigital.no" target="_blank" rel="noopener noreferrer" className="text-[#091AA9] no-underline hover:underline underline-offset-2 transition-all duration-200">Tet Digital</a>. Appen viser isokron-kart, altså
               hvor langt du kan reise med kollektivtransport innen en gitt tid.
             </p>
 
@@ -345,15 +345,15 @@ export default function Home() {
             <ul className="text-xs text-ink-primary/70 leading-relaxed mb-3 space-y-0.5">
               <li className="flex gap-1.5">
                 <span className="shrink-0">•</span>
-                <span><strong>Targomo</strong> — isokronberegning (polygon)</span>
+                <span><strong>Targomo</strong> –  isokronberegning (polygon)</span>
               </li>
               <li className="flex gap-1.5">
                 <span className="shrink-0">•</span>
-                <span><strong>Entur</strong> — holdeplasser, fergeruter og stedsøk</span>
+                <span><strong>Entur</strong> – holdeplasser, fergeruter og stedsøk</span>
               </li>
               <li className="flex gap-1.5">
                 <span className="shrink-0">•</span>
-                <span><strong>MapLibre GL</strong> — kartvisning (OpenMapTiles)</span>
+                <span><strong>MapLibre GL</strong> – kartvisning (OpenMapTiles)</span>
               </li>
             </ul>
 
