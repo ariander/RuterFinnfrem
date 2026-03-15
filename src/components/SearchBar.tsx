@@ -55,14 +55,17 @@ function getCategoryIcon(categories: string[] | undefined): CategoryIcon | null 
 
 interface SearchBarProps {
   onSelect: (location: { lat: number; lng: number; name: string }) => void;
+  onFocusChange?: (focused: boolean) => void;
 }
 
-export function SearchBar({ onSelect }: SearchBarProps) {
+export function SearchBar({ onSelect, onFocusChange }: SearchBarProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const suppressSearch = useRef(false);
 
@@ -90,6 +93,7 @@ export function SearchBar({ onSelect }: SearchBarProps) {
         const data = await res.json();
         setResults(data.features || []);
         setIsOpen(data.features?.length > 0);
+        setHighlightedIndex(-1);
       } catch (err) {
         console.error("Search error:", err);
       }
@@ -105,6 +109,7 @@ export function SearchBar({ onSelect }: SearchBarProps) {
     function handleClickOutside(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
+        onFocusChange?.(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -124,20 +129,42 @@ export function SearchBar({ onSelect }: SearchBarProps) {
           className="h-10 pl-9 pr-3 bg-transparent border-none shadow-none rounded-xl text-sm focus-visible:ring-0 placeholder:text-ink-primary/40"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => setIsOpen(results.length > 0)}
+          onFocus={() => { setIsOpen(results.length > 0); onFocusChange?.(true); }}
+          onKeyDown={(e) => {
+            if (!isOpen || results.length === 0) return;
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              const next = Math.min(highlightedIndex + 1, results.length - 1);
+              setHighlightedIndex(next);
+              itemRefs.current[next]?.scrollIntoView({ block: "nearest" });
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              const prev = Math.max(highlightedIndex - 1, 0);
+              setHighlightedIndex(prev);
+              itemRefs.current[prev]?.scrollIntoView({ block: "nearest" });
+            } else if (e.key === "Enter" && highlightedIndex >= 0) {
+              e.preventDefault();
+              itemRefs.current[highlightedIndex]?.click();
+            } else if (e.key === "Escape") {
+              setIsOpen(false);
+              inputRef.current?.blur();
+            }
+          }}
         />
       </div>
 
       {isOpen && (
         <Card className="absolute top-full gap-1 mt-0 w-full bg-white shadow-2xl rounded-lg overflow-hidden border-none py-3 max-h-96 overflow-y-auto z-50">
-          {results.map((res: any) => {
+          {results.map((res: any, idx: number) => {
             const stopBadge = getStopBadge(res.properties.category);
             const catIcon = !stopBadge ? getCategoryIcon(res.properties.category) : null;
+            const isHighlighted = idx === highlightedIndex;
 
             return (
               <button
                 key={res.properties.id}
-                className="w-full px-4 py-2 text-left hover:bg-slate-50 transition-colors flex items-center gap-3"
+                ref={(el) => { itemRefs.current[idx] = el; }}
+                className={`w-full px-4 py-2 text-left transition-colors flex items-center gap-3 ${isHighlighted ? "bg-slate-100" : "hover:bg-slate-50"}`}
                 onClick={() => {
                   const [lng, lat] = res.geometry.coordinates;
                   onSelect({ lat, lng, name: res.properties.name });

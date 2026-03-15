@@ -14,6 +14,15 @@ export default function Home() {
   const [routes, setRoutes] = useState<TripPattern[]>([]);
   const [selectedRoute, setSelectedRoute] = useState(0);
   const [expandedRoute, setExpandedRoute] = useState<number | null>(null);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    setIsMobile(
+      navigator.maxTouchPoints > 0 ||
+      window.matchMedia("(pointer: coarse)").matches ||
+      window.innerWidth < 768
+    );
+  }, []);
   const [loading, setLoading] = useState(false);
   const [stops, setStops] = useState<Stop[]>([]);
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -122,6 +131,7 @@ export default function Home() {
   const handleDestinationSelect = useCallback(
     (loc: { lat: number; lng: number; name: string }) => {
       setDestination(loc);
+      setSearchFocused(false);
     },
     [],
   );
@@ -140,14 +150,48 @@ export default function Home() {
 
   return (
     <main className="fixed inset-0">
-      {/* Top search panel */}
-      <div
-        className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4"
-        style={{ top: "calc(env(safe-area-inset-top) + 1rem)" }}
-      >
-        <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-lg px-3 py-2.5">
-          {destination ? (
-            /* Active route header */
+      {/* Search panel — animates from bottom to top on focus */}
+      {!destination && (
+        <div
+          className="fixed left-1/2 z-[110] w-full max-w-md px-4 transition-transform duration-300 ease-in-out"
+          style={{
+            top: "calc(env(safe-area-inset-top, 0px) + 1rem)",
+            transform: (!isMobile || searchFocused)
+              ? "translateX(-50%)"
+              : "translateX(-50%) translateY(calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 5rem))",
+          }}
+        >
+          <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-lg px-3 py-2.5">
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <SearchBar
+                  onSelect={handleDestinationSelect}
+                  onFocusChange={setSearchFocused}
+                />
+              </div>
+              <div
+                className={`shrink-0 w-2 h-2 rounded-full transition-colors ${
+                  userLocation ? "bg-emerald-500" : geoError ? "bg-red-400" : "bg-amber-400 animate-pulse"
+                }`}
+                title={userLocation ? "Posisjonen din er funnet" : geoError || "Finner posisjonen din..."}
+              />
+            </div>
+          </div>
+          {geoError && searchFocused && (
+            <div className="mt-2 bg-red-50/90 backdrop-blur-xl rounded-xl px-3 py-2 shadow-lg">
+              <p className="text-xs text-red-700">{geoError}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Route header — shown when destination is set */}
+      {destination && (
+        <div
+          className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4"
+          style={{ top: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
+        >
+          <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-lg px-3 py-2.5">
             <div className="flex flex-col gap-0 px-2">
               <div className="flex items-center gap-2 mb-0.5">
                 <span className="w-3 h-3 rounded-full bg-[#4285F4] border-2 border-white shadow-sm shrink-0" />
@@ -168,33 +212,9 @@ export default function Home() {
                 </button>
               </div>
             </div>
-          ) : (
-            /* Search mode */
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <SearchBar onSelect={handleDestinationSelect} />
-              </div>
-              <div
-                className={`shrink-0 w-2 h-2 rounded-full transition-colors ${
-                  userLocation ? "bg-emerald-500" : geoError ? "bg-red-400" : "bg-amber-400 animate-pulse"
-                }`}
-                title={
-                  userLocation
-                    ? "Posisjonen din er funnet"
-                    : geoError || "Finner posisjonen din..."
-                }
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Geo error toast */}
-        {geoError && !destination && (
-          <div className="mt-2 bg-red-50/90 backdrop-blur-xl rounded-xl px-3 py-2 shadow-lg">
-            <p className="text-xs text-red-700">{geoError}</p>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Map */}
       <MapView
