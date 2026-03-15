@@ -31,11 +31,11 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Ruter Reisetid",
-  description: "Interaktivt isokron-kart for Ruter",
+  title: "Ruter Finnfrem",
+  description: "GPS-navigasjon for kollektivtransport",
   appleWebApp: {
     capable: true,
-    title: "Ruter Reisetid",
+    title: "Ruter Finnfrem",
     statusBarStyle: "black-translucent",
   },
   icons: {
