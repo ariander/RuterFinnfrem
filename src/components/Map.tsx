@@ -29,27 +29,6 @@ const STOP_COLORS: Record<string, string> = {
 
 const BADGE_OFFSET = 22;
 
-/** Calculate geographic offset for overlapping stop dots (33% overlap) */
-function getOffsetForMode(modeCount: number, modeIndex: number): [number, number] {
-  const OFFSET = 0.000055; // ~6 meters at equator, ~4.5 meters at Oslo latitude
-
-  if (modeCount === 1) return [0, 0];
-
-  if (modeCount === 2) {
-    return modeIndex === 0 ? [-OFFSET, 0] : [OFFSET, 0];
-  }
-
-  if (modeCount === 3) {
-    // Arrange in a triangle pattern
-    if (modeIndex === 0) return [-OFFSET, -OFFSET * 0.5];
-    if (modeIndex === 1) return [0, OFFSET];
-    return [OFFSET, -OFFSET * 0.5];
-  }
-
-  // For modeCount > 3, use circular arrangement
-  const angle = (modeIndex / modeCount) * Math.PI * 2;
-  return [OFFSET * Math.cos(angle), OFFSET * Math.sin(angle)];
-}
 
 /** Build GeoJSON for a trip pattern's legs */
 function routeToGeoJSON(
@@ -329,24 +308,47 @@ export function MapView({
             },
           });
 
-          // ── Stops source ───────────────────────────
+          // ── Stops sources ──────────────────────────
           map.current?.addSource("stops", {
+            type: "geojson",
+            data: emptyFC,
+          });
+          map.current?.addSource("stops-dots-src", {
             type: "geojson",
             data: emptyFC,
           });
 
           // Dots at low zoom levels (< 12)
-          map.current?.addLayer({
-            id: "stops-dots",
-            type: "circle",
-            source: "stops",
-            maxzoom: 12,
-            paint: {
-              "circle-radius": 4,
-              "circle-color": ["get", "color"],
-              "circle-opacity": 0.9,
-            },
-          });
+          // One layer per modeCount/modeIndex with pixel-based circle-translate
+          // so separation stays consistent at all zoom levels
+          const DOT_CONFIGS: { modeCount: number; modeIndex: number; translate: [number, number] }[] = [
+            { modeCount: 1, modeIndex: 0, translate: [0, 0] },
+            { modeCount: 2, modeIndex: 0, translate: [-7, 0] },
+            { modeCount: 2, modeIndex: 1, translate: [7, 0] },
+            { modeCount: 3, modeIndex: 0, translate: [-8, -4] },
+            { modeCount: 3, modeIndex: 1, translate: [0, 7] },
+            { modeCount: 3, modeIndex: 2, translate: [8, -4] },
+          ];
+          for (const { modeCount, modeIndex, translate } of DOT_CONFIGS) {
+            map.current?.addLayer({
+              id: `stops-dot-${modeCount}-${modeIndex}`,
+              type: "circle",
+              source: "stops-dots-src",
+              maxzoom: 12,
+              filter: ["all",
+                ["==", ["get", "modeCount"], modeCount],
+                ["==", ["get", "modeIndex"], modeIndex],
+              ],
+              paint: {
+                "circle-radius": 5,
+                "circle-color": ["get", "color"],
+                "circle-opacity": 1,
+                "circle-stroke-color": "#ffffff",
+                "circle-stroke-width": 1.5,
+                "circle-translate": translate,
+              },
+            });
+          }
 
           map.current?.addLayer({
             id: "stops-badge",
@@ -561,34 +563,56 @@ export function MapView({
     }
   }, [routes, selectedRouteIndex]);
 
-  // Update stops layer
+  // Update stops layers
   useEffect(() => {
     if (!map.current || !mapLoaded.current) return;
-    const source = map.current.getSource("stops") as maplibre.GeoJSONSource;
-    if (!source) return;
+    const badgeSource = map.current.getSource("stops") as maplibre.GeoJSONSource;
+    const dotsSource = map.current.getSource("stops-dots-src") as maplibre.GeoJSONSource;
+    if (!badgeSource || !dotsSource) return;
 
     const MAX_MODES = 3;
-    source.setData({
+    const stopModes = (stops ?? []).flatMap((s) =>
+      s.modes.slice(0, MAX_MODES).map((mode, i, arr) => ({
+        stop: s, mode, modeIndex: i, modeCount: arr.length,
+      })),
+    );
+
+    // Badges: original coordinates (pixel offset handled by icon-offset)
+    badgeSource.setData({
       type: "FeatureCollection",
-      features: (stops ?? []).flatMap((s) =>
-        s.modes.slice(0, MAX_MODES).map((mode, i, arr) => {
-          const offset = getOffsetForMode(arr.length, i);
-          return {
-            type: "Feature" as const,
-            geometry: {
-              type: "Point" as const,
-              coordinates: [s.lng + offset[0], s.lat + offset[1]],
-            },
-            properties: {
-              name: s.name,
-              mode,
-              color: STOP_COLORS[mode] || STOP_COLORS.bus,
-              modeIndex: i,
-              modeCount: arr.length,
-            },
-          };
-        }),
-      ),
+      features: stopModes.map(({ stop, mode, modeIndex, modeCount }) => ({
+        type: "Feature" as const,
+        geometry: {
+          type: "Point" as const,
+          coordinates: [stop.lng, stop.lat],
+        },
+        properties: {
+          name: stop.name,
+          mode,
+          color: STOP_COLORS[mode] || STOP_COLORS.bus,
+          modeIndex,
+          modeCount,
+        },
+      })),
+    });
+
+    // Dots: original coordinates, pixel offset handled by circle-translate per layer
+    dotsSource.setData({
+      type: "FeatureCollection",
+      features: stopModes.map(({ stop, mode, modeIndex, modeCount }) => ({
+        type: "Feature" as const,
+        geometry: {
+          type: "Point" as const,
+          coordinates: [stop.lng, stop.lat],
+        },
+        properties: {
+          name: stop.name,
+          mode,
+          color: STOP_COLORS[mode] || STOP_COLORS.bus,
+          modeIndex,
+          modeCount,
+        },
+      })),
     });
   }, [stops]);
 
