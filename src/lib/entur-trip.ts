@@ -146,3 +146,42 @@ export async function searchTrip(
   const data = await res.json();
   return data.data?.trip?.tripPatterns ?? [];
 }
+
+export async function searchWalkRoute(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+): Promise<TripPattern | null> {
+  const query = `{
+    trip(
+      from: { coordinates: { latitude: ${from.lat}, longitude: ${from.lng} } }
+      to: { coordinates: { latitude: ${to.lat}, longitude: ${to.lng} } }
+      numTripPatterns: 1
+      modes: { directMode: foot }
+    ) {
+      tripPatterns {
+        duration startTime endTime walkDistance
+        legs {
+          mode duration distance
+          aimedStartTime expectedStartTime aimedEndTime expectedEndTime
+          fromPlace { name latitude longitude }
+          toPlace { name latitude longitude }
+          pointsOnLink { points }
+        }
+      }
+    }
+  }`;
+
+  const res = await fetch(ENTUR_GRAPHQL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "ET-Client-Name": CLIENT_NAME,
+    },
+    body: JSON.stringify({ query }),
+  });
+
+  if (!res.ok) throw new Error("Walk route search failed");
+  const data = await res.json();
+  const patterns = data.data?.trip?.tripPatterns ?? [];
+  return patterns[0] ?? null;
+}

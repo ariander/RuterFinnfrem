@@ -14,7 +14,7 @@ function LegBar({ legs }: { legs: Leg[] }) {
   if (totalDuration === 0) return null;
 
   return (
-    <div className="flex items-center gap-0.5 h-3 w-full rounded-s overflow-hidden">
+    <div className="flex items-center gap-0.5 h-3 w-full rounded overflow-hidden">
       {legs.map((leg, i) => {
         const pct = Math.max((leg.duration / totalDuration) * 100, 4);
         const color = getModeColor(leg.mode);
@@ -23,7 +23,7 @@ function LegBar({ legs }: { legs: Leg[] }) {
         return (
           <div
             key={i}
-            className="h-full rounded-s relative overflow-hidden"
+            className="h-full rounded relative overflow-hidden"
             style={{
               flex: `${pct} 0 0`,
               backgroundColor: isWalk ? "transparent" : color,
@@ -31,9 +31,9 @@ function LegBar({ legs }: { legs: Leg[] }) {
           >
             {isWalk && (
               <div
-                className="absolute inset-0 rounded-s"
+                className="absolute inset-0 rounded"
                 style={{
-                  backgroundImage: `repeating-linear-gradient(90deg, #9CA3AF 0px, #9CA3AF 4px, transparent 4px, transparent 8px)`,
+                  backgroundImage: `repeating-linear-gradient(90deg, #9CA3AF 0px, #9CA3AF 3px, transparent 3px, transparent 6px)`,
                 }}
               />
             )}

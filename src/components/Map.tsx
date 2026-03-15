@@ -15,6 +15,7 @@ interface MapViewProps {
   selectedRouteIndex?: number;
   stops?: Stop[];
   centerOnUser?: boolean;
+  walkRoute?: TripPattern;
   onMapClick?: (lat: number, lng: number) => void;
   onViewChange?: (lat: number, lng: number) => void;
 }
@@ -85,6 +86,7 @@ export function MapView({
   selectedRouteIndex = 0,
   stops,
   centerOnUser,
+  walkRoute,
   onMapClick,
   onViewChange,
 }: MapViewProps) {
@@ -261,8 +263,8 @@ export function MapView({
             paint: {
               "line-color": "#6B7280",
               "line-width": 4,
-              "line-dasharray": [2, 3],
-              "line-opacity": 0.8,
+              "line-dasharray": [1, 2],
+              "line-opacity": 0.7,
             },
             layout: { "line-cap": "round", "line-join": "round" },
           });
@@ -510,9 +512,24 @@ export function MapView({
 
     if (!routes || routes.length === 0) {
       altSource.setData(emptyFC);
-      walkSource.setData(emptyFC);
       transitSource.setData(emptyFC);
       transferSource.setData(emptyFC);
+      if (walkRoute) {
+        const geo = routeToGeoJSON(walkRoute, { opacity: 1, width: 4 });
+        walkSource.setData({ type: "FeatureCollection", features: geo.features });
+        const bounds = tripBounds(walkRoute);
+        const fitKey = `walk-${walkRoute.startTime}`;
+        if (bounds && fitKey !== lastFitKey.current) {
+          lastFitKey.current = fitKey;
+          map.current?.fitBounds(bounds, {
+            padding: { top: 120, bottom: 200, left: 40, right: 40 },
+            maxZoom: 16,
+            duration: 800,
+          });
+        }
+      } else {
+        walkSource.setData(emptyFC);
+      }
       return;
     }
 
@@ -579,7 +596,7 @@ export function MapView({
         });
       }
     }
-  }, [routes, selectedRouteIndex]);
+  }, [routes, selectedRouteIndex, walkRoute]);
 
   // Update stops layers
   useEffect(() => {

@@ -6,7 +6,7 @@ import { MapView } from "@/components/Map";
 import { SearchBar, type SearchBarRef } from "@/components/SearchBar";
 import { RoutePanel } from "@/components/RoutePanel";
 import { RouteDetail } from "@/components/RouteDetail";
-import { searchTrip, type TripPattern } from "@/lib/entur-trip";
+import { searchTrip, searchWalkRoute, type TripPattern } from "@/lib/entur-trip";
 import { getNearbyStops, type Stop } from "@/lib/entur-stops";
 
 export default function Home() {
@@ -19,6 +19,7 @@ export default function Home() {
   const searchBarRef = useRef<SearchBarRef>(null);
   const [loading, setLoading] = useState(false);
   const [walkOnly, setWalkOnly] = useState(false);
+  const [walkRoute, setWalkRoute] = useState<TripPattern | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
   const [geoError, setGeoError] = useState<string | null>(null);
 
@@ -92,6 +93,17 @@ export default function Home() {
     };
   }, [userLocation, destination]);
 
+  // Fetch walk route when no transit routes available
+  useEffect(() => {
+    if (!walkOnly || !userLocation || !destination) {
+      setWalkRoute(null);
+      return;
+    }
+    searchWalkRoute(userLocation, destination)
+      .then(setWalkRoute)
+      .catch(console.error);
+  }, [walkOnly, userLocation, destination]);
+
   // Periodic route refresh when detail is open
   useEffect(() => {
     if (expandedRoute === null || !userLocation || !destination) return;
@@ -138,6 +150,7 @@ export default function Home() {
     setSelectedRoute(0);
     setExpandedRoute(null);
     setWalkOnly(false);
+    setWalkRoute(null);
     setSearchOpen(false);
   }, []);
 
@@ -216,10 +229,10 @@ export default function Home() {
                 </span>
                 <button
                   onClick={handleClearDestination}
-                  className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center hover:bg-ink-primary/5 transition-colors"
+                  className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-ink-primary/8 hover:bg-ink-primary/15 transition-colors"
                   aria-label="Fjern destinasjon"
                 >
-                  <span className="text-ink-primary/40 text-lg leading-none">×</span>
+                  <span className="text-ink-primary/50 text-xl text-bold leading-none">×</span>
                 </button>
               </div>
             </div>
@@ -235,6 +248,7 @@ export default function Home() {
         selectedRouteIndex={selectedRoute}
         stops={stops}
         centerOnUser={expandedRoute !== null}
+        walkRoute={walkRoute ?? undefined}
         onViewChange={handleViewChange}
       />
 

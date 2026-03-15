@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Search, X } from "lucide-react";
+import { Search } from "lucide-react";
 
 const TRANSIT_BADGE: Record<string, { icon: string; color: string }> = {
   onstreetBus:   { icon: "/icons/bus.svg",   color: "#E60000" },
@@ -96,8 +96,15 @@ export const SearchBar = forwardRef<SearchBarRef, SearchBarProps>(function Searc
           )}&lang=no&layers=venue,stop,address`
         );
         const data = await res.json();
-        setResults(data.features || []);
-        setIsOpen(data.features?.length > 0);
+        const features = data.features || [];
+        // Prioritize transit stops/stations at the top
+        const sorted = [...features].sort((a: any, b: any) => {
+          const aIsTransit = getStopBadge(a.properties.category) ? 0 : 1;
+          const bIsTransit = getStopBadge(b.properties.category) ? 0 : 1;
+          return aIsTransit - bIsTransit;
+        });
+        setResults(sorted);
+        setIsOpen(sorted.length > 0);
         setHighlightedIndex(-1);
       } catch (err) {
         console.error("Search error:", err);
@@ -229,10 +236,10 @@ export const SearchBar = forwardRef<SearchBarRef, SearchBarProps>(function Searc
         {query.length > 0 && (
           <button
             onMouseDown={(e) => { e.preventDefault(); handleClear(); }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-primary/40 hover:text-ink-primary/70 transition-colors"
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center bg-ink-primary/8 hover:bg-ink-primary/15 transition-colors"
             aria-label="Tøm søk"
           >
-            <X size={16} />
+            <img src="/cross.svg" width={14} height={14} alt="" className="opacity-50" />
           </button>
         )}
       </div>
