@@ -18,6 +18,7 @@ interface MapViewProps {
   walkRoute?: TripPattern;
   onMapClick?: (lat: number, lng: number) => void;
   onViewChange?: (lat: number, lng: number) => void;
+  onStopClick?: (stop: { lat: number; lng: number; name: string }) => void;
 }
 
 const STOP_COLORS: Record<string, string> = {
@@ -89,6 +90,7 @@ export function MapView({
   walkRoute,
   onMapClick,
   onViewChange,
+  onStopClick,
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibre.Map | null>(null);
@@ -99,6 +101,8 @@ export function MapView({
   onMapClickRef.current = onMapClick;
   const onViewChangeRef = useRef(onViewChange);
   onViewChangeRef.current = onViewChange;
+  const onStopClickRef = useRef(onStopClick);
+  onStopClickRef.current = onStopClick;
 
   // Track previous route bounds to avoid re-fitting on every render
   const lastFitKey = useRef("");
@@ -328,18 +332,18 @@ export function MapView({
           // so separation stays consistent at all zoom levels
           const DOT_CONFIGS: { modeCount: number; modeIndex: number; translate: [number, number] }[] = [
             { modeCount: 1, modeIndex: 0, translate: [0, 0] },
-            { modeCount: 2, modeIndex: 0, translate: [-4, 0] },
-            { modeCount: 2, modeIndex: 1, translate: [4, 0] },
-            { modeCount: 3, modeIndex: 0, translate: [-5, -3] },
-            { modeCount: 3, modeIndex: 1, translate: [0, 5] },
-            { modeCount: 3, modeIndex: 2, translate: [5, -3] },
+            { modeCount: 2, modeIndex: 0, translate: [-3, 0] },
+            { modeCount: 2, modeIndex: 1, translate: [3, 0] },
+            { modeCount: 3, modeIndex: 0, translate: [-4, -2] },
+            { modeCount: 3, modeIndex: 1, translate: [0, 4] },
+            { modeCount: 3, modeIndex: 2, translate: [4, -2] },
           ];
           for (const { modeCount, modeIndex, translate } of DOT_CONFIGS) {
             map.current?.addLayer({
               id: `stops-dot-${modeCount}-${modeIndex}`,
               type: "circle",
               source: "stops-dots-src",
-              minzoom: 11,
+              minzoom: 8,
               maxzoom: 12,
               filter: ["all",
                 ["==", ["get", "modeCount"], modeCount],
@@ -447,6 +451,31 @@ export function MapView({
               "text-halo-width": 1.5,
             },
           });
+
+          // Stop click handlers
+          const stopLayers = [
+            "stops-badge",
+            ...DOT_CONFIGS.map((c) => `stops-dot-${c.modeCount}-${c.modeIndex}`),
+          ];
+          let stopClickFired = false;
+          for (const layerId of stopLayers) {
+            map.current?.on("mouseenter", layerId, () => {
+              if (map.current) map.current.getCanvas().style.cursor = "pointer";
+            });
+            map.current?.on("mouseleave", layerId, () => {
+              if (map.current) map.current.getCanvas().style.cursor = "";
+            });
+            map.current?.on("click", layerId, (e) => {
+              if (stopClickFired) return;
+              stopClickFired = true;
+              setTimeout(() => { stopClickFired = false; }, 100);
+              const feature = e.features?.[0];
+              if (!feature) return;
+              const name = (feature.properties?.name as string) ?? "";
+              const coords = (feature.geometry as GeoJSON.Point).coordinates;
+              onStopClickRef.current?.({ lat: coords[1], lng: coords[0], name });
+            });
+          }
 
           fireViewChange();
         });

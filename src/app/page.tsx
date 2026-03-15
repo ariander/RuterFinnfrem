@@ -118,10 +118,46 @@ export default function Home() {
     return () => clearInterval(id);
   }, [expandedRoute, userLocation, destination]);
 
-  // Stops cache
+  // Stops cache — fetched around user position, re-fetched when moved >500m
   const stopsCacheRef = useRef<Map<string, Stop>>(new Map());
+  const lastStopFetchPosRef = useRef<{ lat: number; lng: number } | null>(null);
+
+  function haversineDist(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+    const R = 6371000;
+    const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+    const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+    const x =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  }
+
+  useEffect(() => {
+    if (!userLocation) return;
+    const last = lastStopFetchPosRef.current;
+    if (last && haversineDist(last, userLocation) < 500) return;
+    lastStopFetchPosRef.current = userLocation;
+    getNearbyStops(userLocation.lat, userLocation.lng, 15000)
+      .then((newStops) => {
+        const cache = stopsCacheRef.current;
+        let changed = false;
+        for (const s of newStops) {
+          if (!cache.has(s.id)) {
+            cache.set(s.id, s);
+            changed = true;
+          }
+        }
+        if (changed) setStops(Array.from(cache.values()));
+      })
+      .catch(console.error);
+  }, [userLocation]);
+
+  const lastViewFetchPosRef = useRef<{ lat: number; lng: number } | null>(null);
   const handleViewChange = useCallback((lat: number, lng: number) => {
-    getNearbyStops(lat, lng, 8000)
+    const last = lastViewFetchPosRef.current;
+    if (last && haversineDist(last, { lat, lng }) < 3000) return;
+    lastViewFetchPosRef.current = { lat, lng };
+    getNearbyStops(lat, lng, 10000)
       .then((newStops) => {
         const cache = stopsCacheRef.current;
         let changed = false;
@@ -250,6 +286,7 @@ export default function Home() {
         centerOnUser={expandedRoute !== null}
         walkRoute={walkRoute ?? undefined}
         onViewChange={handleViewChange}
+        onStopClick={handleDestinationSelect}
       />
 
       {/* Route panel / detail */}
