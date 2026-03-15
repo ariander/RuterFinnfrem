@@ -126,12 +126,12 @@ export default function Home() {
         <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-lg px-3 py-2.5">
           {destination ? (
             /* Active route header */
-            <div className="flex flex-col gap-1 px-2">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-0 px-2">
+              <div className="flex items-center gap-2 mb-0.5">
                 <span className="w-3 h-3 rounded-full bg-[#4285F4] border-2 border-white shadow-sm shrink-0" />
-                <span className="text-xs text-ink-primary/60 truncate">Min posisjon</span>
+                <span className="text-sm text-ink-primary/60 truncate">Min posisjon</span>
               </div>
-              <div className="ml-1.5 border-l-2 border-dashed border-ink-primary/15 h-2" />
+              <div className="ml-1.25 border-l-2 border-ink-primary/15 h-3" />
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-[#E60000] border-2 border-white shadow-sm shrink-0" />
                 <span className="text-sm font-medium text-ink-primary truncate flex-1">
