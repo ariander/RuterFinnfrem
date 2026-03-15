@@ -327,18 +327,85 @@ export default function Home() {
         />
       )}
 
-      {/* Walk-only: no transit routes needed */}
+      {/* Walk-only: no transit routes — show walk + bike panel */}
       {walkOnly && routes.length === 0 && destination && userLocation && (
         <div
           className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 animate-in slide-in-from-bottom-4 fade-in duration-300"
           style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)" }}
         >
-          <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/5 px-4 py-3 flex items-center gap-3">
-            <span className="text-2xl">🚶</span>
-            <div className="flex flex-col min-w-0">
-              <span className="text-sm font-medium text-ink-primary">Du kan gå dit</span>
-              <span className="text-xs text-ink-primary/50">Ingen kollektivruter nødvendig</span>
+          <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/5 overflow-hidden">
+            {/* Header */}
+            <div className="px-4 pt-3 pb-2 border-b border-ink-primary/5">
+              <div className="flex items-center justify-between">
+                <span className="text-base font-semibold text-ink-primary">Ingen kollektivruter</span>
+                <span className="text-xs text-ink-primary/40">Egne ben gjelder</span>
+              </div>
             </div>
+
+            {(() => {
+              const leg = walkRoute?.legs?.[0];
+              const distM = leg?.distance ?? walkRoute?.walkDistance ?? 0;
+              const walkMins = leg ? Math.round(leg.duration / 60) : null;
+              const bikeMins = distM > 0 ? Math.max(1, Math.round(distM / 250)) : null; // ~15 km/h
+              const distKm = distM > 0 ? (distM / 1000).toFixed(1) : null;
+
+              return (
+                <>
+                  {/* Walk row */}
+                  <div className="px-4 py-3 border-b border-ink-primary/5">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold text-ink-primary">
+                          {walkMins != null ? `${walkMins} min` : "—"}
+                        </span>
+                        {distKm && (
+                          <span className="text-xs text-ink-primary/50">{distKm} km</span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Leg bar — dashed walk */}
+                    <div className="h-3 rounded overflow-hidden mb-2">
+                      <div
+                        className="h-full w-full rounded"
+                        style={{
+                          backgroundImage:
+                            "repeating-linear-gradient(90deg, #9CA3AF 0px, #9CA3AF 4px, transparent 4px, transparent 8px)",
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold text-white bg-[#6B7280]">
+                        🚶 Gange
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Bike row */}
+                  {bikeMins != null && (
+                    <div className="px-4 py-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-bold text-ink-primary">
+                            {bikeMins} min
+                          </span>
+                          {distKm && (
+                            <span className="text-xs text-ink-primary/50">{distKm} km</span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-ink-primary/35">estimert</span>
+                      </div>
+                      {/* Leg bar — solid teal for bike */}
+                      <div className="h-3 rounded overflow-hidden mb-2 bg-[#0891b2]" />
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold text-white bg-[#0891b2]">
+                          🚲 Sykkel
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
