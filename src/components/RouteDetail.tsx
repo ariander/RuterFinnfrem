@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { ChevronLeft } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { ChevronLeft, ChevronDown } from "lucide-react";
 import type { TripPattern } from "@/lib/entur-trip";
 import { getModeColor, formatTime, formatDuration, getModeName } from "@/lib/entur-trip";
 
@@ -32,7 +32,10 @@ function stopName(name: string, fallback: string): string {
 
 export function RouteDetail({ trip, destinationName, onBack }: RouteDetailProps) {
   const [expandedLegs, setExpandedLegs] = useState<Set<number>>(new Set());
+  const [minimized, setMinimized] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const activeLegRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 15_000);
@@ -41,6 +44,15 @@ export function RouteDetail({ trip, destinationName, onBack }: RouteDetailProps)
 
   const activeLegIndex = getActiveLegIndex(trip, now);
   const tripStarted = now >= new Date(trip.startTime).getTime();
+
+  // Scroll to active leg on open
+  useEffect(() => {
+    if (activeLegRef.current && scrollRef.current) {
+      setTimeout(() => {
+        activeLegRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 350); // wait for slide-in animation
+    }
+  }, [activeLegIndex]);
 
   function toggleLeg(i: number) {
     setExpandedLegs((prev) => {
@@ -67,16 +79,31 @@ export function RouteDetail({ trip, destinationName, onBack }: RouteDetailProps)
           >
             <ChevronLeft size={18} className="text-ink-primary/70" />
           </button>
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             <span className="font-semibold text-ink-primary">{formatDuration(trip.duration)}</span>
             <span className="text-ink-primary/50 text-sm shrink-0">
               {formatTime(trip.startTime)} – {formatTime(trip.endTime)}
             </span>
           </div>
+          <button
+            onClick={() => setMinimized((m) => !m)}
+            className="w-8 h-8 rounded-full flex items-center justify-center bg-ink-primary/5 hover:bg-ink-primary/10 transition-colors shrink-0"
+            aria-label={minimized ? "Vis rute" : "Minimer"}
+          >
+            <ChevronDown
+              size={18}
+              className="text-ink-primary/70 transition-transform duration-300"
+              style={{ transform: minimized ? "rotate(180deg)" : "rotate(0deg)" }}
+            />
+          </button>
         </div>
 
         {/* Timeline */}
-        <div className="max-h-[60vh] overflow-y-auto">
+        <div
+          ref={scrollRef}
+          className="overflow-y-auto transition-all duration-300 ease-in-out"
+          style={{ maxHeight: minimized ? "0px" : "60vh" }}
+        >
           <div className="px-4 py-3">
 
             {/* User position row at top (if trip is ongoing) */}
@@ -108,26 +135,52 @@ export function RouteDetail({ trip, destinationName, onBack }: RouteDetailProps)
               // Delay for departure
               const depDelay = delayMinutes(leg.aimedStartTime, leg.expectedStartTime);
 
+              // Progress within active leg (0–1)
+              const legStart = new Date(leg.expectedStartTime).getTime();
+              const legEnd = new Date(leg.expectedEndTime).getTime();
+              const legProgress = isActive
+                ? Math.min(1, Math.max(0, (now - legStart) / (legEnd - legStart)))
+                : 0;
+
               return (
-                <div key={i} className={`flex gap-3 transition-opacity ${past ? "opacity-30" : ""}`}>
+                <div
+                  key={i}
+                  ref={isActive ? activeLegRef : null}
+                  className={`flex gap-3 transition-opacity ${past ? "opacity-30" : ""}`}
+                >
                   {/* Timeline spine */}
                   <div className="flex flex-col items-center w-5 shrink-0 pt-0.5">
                     <div
                       className="w-3 h-3 rounded-full border-2 border-white shadow-sm shrink-0 z-10"
                       style={{ backgroundColor: isWalk ? "#D1D5DB" : color }}
                     />
-                    <div
-                      className="flex-1 my-0.5 min-h-[28px]"
-                      style={
-                        isWalk
-                          ? {
-                              width: "2px",
-                              backgroundImage:
-                                "repeating-linear-gradient(to bottom, #9CA3AF 0px, #9CA3AF 4px, transparent 4px, transparent 8px)",
-                            }
-                          : { width: "2px", backgroundColor: color }
-                      }
-                    />
+                    {isActive ? (
+                      /* Progress bar: filled portion + remaining */
+                      <div className="flex-1 my-0.5 min-h-[28px] w-[2px] relative overflow-hidden rounded-full"
+                        style={{ backgroundColor: isWalk ? "#D1D5DB" : `${color}40` }}
+                      >
+                        <div
+                          className="absolute top-0 left-0 w-full rounded-full"
+                          style={{
+                            height: `${legProgress * 100}%`,
+                            backgroundColor: isWalk ? "#6B7280" : color,
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        className="flex-1 my-0.5 min-h-[28px]"
+                        style={
+                          isWalk
+                            ? {
+                                width: "2px",
+                                backgroundImage:
+                                  "repeating-linear-gradient(to bottom, #9CA3AF 0px, #9CA3AF 4px, transparent 4px, transparent 8px)",
+                              }
+                            : { width: "2px", backgroundColor: color }
+                        }
+                      />
+                    )}
                   </div>
 
                   {/* Content */}

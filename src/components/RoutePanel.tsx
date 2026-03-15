@@ -51,7 +51,7 @@ function LegBar({ legs }: { legs: Leg[] }) {
 
 function LegSummary({ legs }: { legs: Leg[] }) {
   const transitLegs = legs.filter((l) => l.mode !== "foot");
-  if (transitLegs.length === 0) return <span className="text-sm text-ink-primary/60">Kun gange</span>;
+  if (transitLegs.length === 0) return <span className="text-s text-ink-primary/60">Kun gange</span>;
 
   return (
     <div className="flex items-center gap-1 flex-wrap">

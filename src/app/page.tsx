@@ -18,6 +18,7 @@ export default function Home() {
   const [searchOpen, setSearchOpen] = useState(false);
   const searchBarRef = useRef<SearchBarRef>(null);
   const [loading, setLoading] = useState(false);
+  const [walkOnly, setWalkOnly] = useState(false);
   const [stops, setStops] = useState<Stop[]>([]);
   const [geoError, setGeoError] = useState<string | null>(null);
 
@@ -78,6 +79,7 @@ export default function Home() {
         const trips = await searchTrip(userLocation, destination, 5);
         setRoutes(trips);
         setSelectedRoute(0);
+        setWalkOnly(trips.length === 0);
       } catch (err) {
         console.error("Trip search error:", err);
       } finally {
@@ -135,6 +137,7 @@ export default function Home() {
     setRoutes([]);
     setSelectedRoute(0);
     setExpandedRoute(null);
+    setWalkOnly(false);
     setSearchOpen(false);
   }, []);
 
@@ -231,6 +234,7 @@ export default function Home() {
         routes={routes}
         selectedRouteIndex={selectedRoute}
         stops={stops}
+        centerOnUser={expandedRoute !== null}
         onViewChange={handleViewChange}
       />
 
@@ -250,8 +254,24 @@ export default function Home() {
         />
       )}
 
-      {/* Loading overlay — only show if no routes found yet */}
-      {loadingVisible && routes.length === 0 && (
+      {/* Walk-only: no transit routes needed */}
+      {walkOnly && routes.length === 0 && destination && userLocation && (
+        <div
+          className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 animate-in slide-in-from-bottom-4 fade-in duration-300"
+          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)" }}
+        >
+          <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/5 px-4 py-3 flex items-center gap-3">
+            <span className="text-2xl">🚶</span>
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm font-medium text-ink-primary">Du kan gå dit</span>
+              <span className="text-xs text-ink-primary/50">Ingen kollektivruter nødvendig</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading overlay — only show if no routes found yet and not walk-only */}
+      {loadingVisible && routes.length === 0 && !walkOnly && (
         <div
           className={`absolute inset-0 bg-white/20 backdrop-blur-[2px] z-[100] flex items-center justify-center ${
             loadingLeaving

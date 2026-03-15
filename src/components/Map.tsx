@@ -14,6 +14,7 @@ interface MapViewProps {
   routes?: TripPattern[];
   selectedRouteIndex?: number;
   stops?: Stop[];
+  centerOnUser?: boolean;
   onMapClick?: (lat: number, lng: number) => void;
   onViewChange?: (lat: number, lng: number) => void;
 }
@@ -83,6 +84,7 @@ export function MapView({
   routes,
   selectedRouteIndex = 0,
   stops,
+  centerOnUser,
   onMapClick,
   onViewChange,
 }: MapViewProps) {
@@ -98,6 +100,7 @@ export function MapView({
 
   // Track previous route bounds to avoid re-fitting on every render
   const lastFitKey = useRef("");
+  const prevCenterOnUser = useRef(false);
 
   const createUserMarker = useCallback((lng: number, lat: number) => {
     if (!map.current) return;
@@ -478,6 +481,20 @@ export function MapView({
       essential: true,
     });
   }, [userLocation]);
+
+  // Zoom to user when entering route detail
+  useEffect(() => {
+    if (!map.current || !userLocation) return;
+    if (centerOnUser && !prevCenterOnUser.current) {
+      map.current.flyTo({
+        center: [userLocation.lng, userLocation.lat],
+        zoom: 17,
+        duration: 800,
+        essential: true,
+      });
+    }
+    prevCenterOnUser.current = !!centerOnUser;
+  }, [centerOnUser, userLocation]);
 
   // Update route layers
   useEffect(() => {
