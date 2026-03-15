@@ -116,9 +116,9 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange }
                   >
                     {nextTransitLeg.line?.publicCode || getModeName(nextTransitLeg.mode)}
                   </span>
-                  {nextTransitLeg.destinationDisplay?.frontText && (
+                  {nextTransitLeg.fromEstimatedCall?.destinationDisplay?.frontText && (
                     <span className="text-sm font-medium text-ink-primary truncate">
-                      {nextTransitLeg.destinationDisplay.frontText}
+                      {nextTransitLeg.fromEstimatedCall.destinationDisplay.frontText}
                     </span>
                   )}
                   <span className="text-sm text-ink-primary/70 shrink-0">
@@ -264,15 +264,6 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange }
                       </div>
                     </div>
 
-                    {/* Platform/track */}
-                    {!isWalk && leg.fromPlace.quay?.publicCode && (
-                      <div className="mb-1">
-                        <span className="text-[11px] text-ink-primary/50 bg-ink-primary/5 px-1.5 py-0.5 rounded">
-                          {platformLabel(leg.mode, leg.fromPlace.quay.publicCode)}
-                        </span>
-                      </div>
-                    )}
-
                     {/* Walk */}
                     {isWalk && (
                       <div className="flex items-center gap-3 mb-1">
@@ -297,9 +288,14 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange }
                           >
                             {leg.line?.publicCode || getModeName(leg.mode)}
                           </span>
-                          {leg.destinationDisplay?.frontText && (
+                          {leg.fromEstimatedCall?.destinationDisplay?.frontText && (
                             <span className="text-sm font-medium text-ink-primary truncate">
-                              {leg.destinationDisplay.frontText}
+                              {leg.fromEstimatedCall.destinationDisplay.frontText}
+                            </span>
+                          )}
+                          {leg.fromPlace.quay?.publicCode && (
+                            <span className="text-[11px] text-ink-primary/70 bg-ink-primary/5 px-1.5 py-0.5 rounded shrink-0">
+                              {platformLabel(leg.mode, leg.fromPlace.quay.publicCode)}
                             </span>
                           )}
                           {isActive && (

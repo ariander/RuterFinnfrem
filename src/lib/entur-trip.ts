@@ -22,7 +22,7 @@ export interface Leg {
   fromPlace: Place;
   toPlace: Place;
   line?: LineInfo;
-  destinationDisplay?: { frontText: string };
+  fromEstimatedCall?: { destinationDisplay?: { frontText: string } };
   intermediateEstimatedCalls?: EstimatedCall[];
   pointsOnLink?: { points: string };
   serviceJourney?: { id: string };
@@ -122,7 +122,7 @@ export async function searchTrip(
           fromPlace { name latitude longitude quay { id name publicCode } }
           toPlace { name latitude longitude quay { id name publicCode } }
           line { publicCode name transportMode }
-          destinationDisplay { frontText }
+          fromEstimatedCall { destinationDisplay { frontText } }
           intermediateEstimatedCalls {
             quay { name id }
             aimedDepartureTime expectedDepartureTime realtime

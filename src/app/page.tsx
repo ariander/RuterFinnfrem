@@ -70,10 +70,23 @@ export default function Home() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
 
-  // Search for trips when destination or user location changes
+  // Search for trips only when destination changes (not on every GPS update)
+  // GPS-triggered re-runs would cause race conditions: a stale empty result
+  // can overwrite valid routes just because GPS drifted 1m.
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSearchedDestRef = useRef<{ lat: number; lng: number } | null>(null);
+
   useEffect(() => {
     if (!userLocation || !destination) return;
+
+    // Skip if destination coords haven't changed (pure GPS drift update)
+    if (
+      lastSearchedDestRef.current &&
+      lastSearchedDestRef.current.lat === destination.lat &&
+      lastSearchedDestRef.current.lng === destination.lng
+    ) return;
+
+    lastSearchedDestRef.current = { lat: destination.lat, lng: destination.lng };
 
     if (searchRef.current) clearTimeout(searchRef.current);
     searchRef.current = setTimeout(async () => {
@@ -190,6 +203,7 @@ export default function Home() {
     setWalkOnly(false);
     setWalkRoute(null);
     setSearchOpen(false);
+    lastSearchedDestRef.current = null;
   }, []);
 
   const [routeDetailMinimized, setRouteDetailMinimized] = useState(false);
