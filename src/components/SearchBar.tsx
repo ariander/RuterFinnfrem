@@ -124,7 +124,6 @@ export function SearchBar({ onSelect, onFocusChange }: SearchBarProps) {
         </div>
         <Input
           ref={inputRef}
-          autoFocus
           placeholder="Hvor vil du reise?"
           className="h-10 pl-9 pr-3 bg-transparent border-none shadow-none rounded-xl text-sm focus-visible:ring-0 placeholder:text-ink-primary/40"
           value={query}
