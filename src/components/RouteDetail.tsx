@@ -65,6 +65,20 @@ export function RouteDetail({ trip, destinationName, onBack }: RouteDetailProps)
 
   const lastLeg = trip.legs[trip.legs.length - 1];
 
+  // What to show in minimized header
+  const focusLegIndex = activeLegIndex !== null
+    ? activeLegIndex
+    : (() => {
+        const idx = trip.legs.findIndex(l => now < new Date(l.expectedStartTime).getTime());
+        return idx >= 0 ? idx : trip.legs.length - 1;
+      })();
+  const focusLeg = trip.legs[focusLegIndex];
+  const nextTransitLeg = trip.legs.slice(focusLegIndex).find(l => l.mode !== "foot") ?? null;
+
+  function platformLabel(mode: string, code: string) {
+    return mode === "rail" || mode === "coach" ? `Spor ${code}` : `Perrong ${code}`;
+  }
+
   return (
     <div
       className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 animate-in slide-in-from-bottom-4 fade-in duration-300"
@@ -79,12 +93,45 @@ export function RouteDetail({ trip, destinationName, onBack }: RouteDetailProps)
           >
             <ChevronLeft size={18} className="text-ink-primary/70" />
           </button>
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <span className="font-semibold text-ink-primary">{formatDuration(trip.duration)}</span>
-            <span className="text-ink-primary/50 text-sm shrink-0">
-              {formatTime(trip.startTime)} – {formatTime(trip.endTime)}
-            </span>
-          </div>
+          {minimized ? (
+            <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+              {focusLeg?.mode === "foot" && (
+                <span className="text-sm text-ink-primary/70 shrink-0">
+                  🚶 {Math.round(focusLeg.duration / 60)} min
+                </span>
+              )}
+              {nextTransitLeg && (
+                <>
+                  {focusLeg?.mode === "foot" && (
+                    <span className="text-ink-primary/25 shrink-0 text-xs">→</span>
+                  )}
+                  <span
+                    className="inline-flex px-1.5 py-0.5 rounded text-xs font-bold text-white shrink-0"
+                    style={{ backgroundColor: getModeColor(nextTransitLeg.mode) }}
+                  >
+                    {nextTransitLeg.line?.publicCode || getModeName(nextTransitLeg.mode)}
+                  </span>
+                  <span className="text-sm text-ink-primary/70 truncate">
+                    {formatTime(nextTransitLeg.expectedStartTime)}
+                    {nextTransitLeg.fromPlace.quay?.publicCode &&
+                      ` · ${platformLabel(nextTransitLeg.mode, nextTransitLeg.fromPlace.quay.publicCode)}`}
+                  </span>
+                </>
+              )}
+              {!nextTransitLeg && focusLeg && (
+                <span className="text-sm text-ink-primary/50 truncate">
+                  {formatTime(trip.endTime)}
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span className="font-semibold text-ink-primary">{formatDuration(trip.duration)}</span>
+              <span className="text-ink-primary/50 text-sm shrink-0">
+                {formatTime(trip.startTime)} – {formatTime(trip.endTime)}
+              </span>
+            </div>
+          )}
           <button
             onClick={() => setMinimized((m) => !m)}
             className="w-8 h-8 rounded-full flex items-center justify-center bg-ink-primary/5 hover:bg-ink-primary/10 transition-colors shrink-0"
@@ -206,6 +253,15 @@ export function RouteDetail({ trip, destinationName, onBack }: RouteDetailProps)
                         )}
                       </div>
                     </div>
+
+                    {/* Platform/track */}
+                    {!isWalk && leg.fromPlace.quay?.publicCode && (
+                      <div className="mb-1">
+                        <span className="text-[11px] text-ink-primary/50 bg-ink-primary/5 px-1.5 py-0.5 rounded">
+                          {platformLabel(leg.mode, leg.fromPlace.quay.publicCode)}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Walk */}
                     {isWalk && (

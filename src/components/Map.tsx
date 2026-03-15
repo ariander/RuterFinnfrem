@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import maplibre from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Stop } from "@/lib/entur-stops";
@@ -16,6 +16,7 @@ interface MapViewProps {
   stops?: Stop[];
   centerOnUser?: boolean;
   walkRoute?: TripPattern;
+  userHeading?: number | null;
   onMapClick?: (lat: number, lng: number) => void;
   onViewChange?: (lat: number, lng: number) => void;
   onStopClick?: (stop: { lat: number; lng: number; name: string }) => void;
@@ -88,6 +89,7 @@ export function MapView({
   stops,
   centerOnUser,
   walkRoute,
+  userHeading,
   onMapClick,
   onViewChange,
   onStopClick,
@@ -107,6 +109,10 @@ export function MapView({
   // Track previous route bounds to avoid re-fitting on every render
   const lastFitKey = useRef("");
   const prevCenterOnUser = useRef(false);
+  const centerOnUserRef = useRef(false);
+  centerOnUserRef.current = !!centerOnUser;
+  const isFollowingRef = useRef(false);
+  const [showRecenter, setShowRecenter] = useState(false);
 
   const createUserMarker = useCallback((lng: number, lat: number) => {
     if (!map.current) return;
@@ -117,6 +123,7 @@ export function MapView({
     const el = document.createElement("div");
     el.className = "user-location-marker";
     el.innerHTML = `
+      <div class="user-location-cone"></div>
       <div class="user-location-pulse"></div>
       <div class="user-location-dot"></div>
     `;
@@ -477,6 +484,13 @@ export function MapView({
             });
           }
 
+          map.current?.on("dragstart", () => {
+            if (centerOnUserRef.current && isFollowingRef.current) {
+              isFollowingRef.current = false;
+              setShowRecenter(true);
+            }
+          });
+
           fireViewChange();
         });
 
@@ -489,11 +503,20 @@ export function MapView({
     };
   }, []);
 
-  // Update user location marker
+  // Update user location marker + heading
   useEffect(() => {
     if (!map.current || !userLocation) return;
     createUserMarker(userLocation.lng, userLocation.lat);
-  }, [userLocation, createUserMarker]);
+    const el = userMarker.current?.getElement();
+    if (!el) return;
+    if (userHeading != null) {
+      el.style.transform = `rotate(${userHeading}deg)`;
+      el.classList.add("has-heading");
+    } else {
+      el.style.transform = "";
+      el.classList.remove("has-heading");
+    }
+  }, [userLocation, userHeading, createUserMarker]);
 
   // Update destination marker
   useEffect(() => {
@@ -513,19 +536,38 @@ export function MapView({
     });
   }, [userLocation]);
 
+  const FOLLOW_PADDING = { top: 80, bottom: 460, left: 40, right: 40 };
+
   // Zoom to user when entering route detail
   useEffect(() => {
     if (!map.current || !userLocation) return;
     if (centerOnUser && !prevCenterOnUser.current) {
+      isFollowingRef.current = true;
+      setShowRecenter(false);
       map.current.flyTo({
         center: [userLocation.lng, userLocation.lat],
-        zoom: 17,
+        zoom: 15,
         duration: 800,
         essential: true,
+        padding: FOLLOW_PADDING,
       });
+    }
+    if (!centerOnUser) {
+      isFollowingRef.current = false;
+      setShowRecenter(false);
     }
     prevCenterOnUser.current = !!centerOnUser;
   }, [centerOnUser, userLocation]);
+
+  // Follow user location continuously when in follow mode (only on GPS updates, not on centerOnUser flip)
+  useEffect(() => {
+    if (!map.current || !userLocation || !centerOnUser || !isFollowingRef.current) return;
+    map.current.easeTo({
+      center: [userLocation.lng, userLocation.lat],
+      duration: 800,
+      padding: FOLLOW_PADDING,
+    });
+  }, [userLocation]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update route layers
   useEffect(() => {
@@ -612,9 +654,9 @@ export function MapView({
     });
     altSource.setData({ type: "FeatureCollection", features: altFeatures });
 
-    // Fit map to selected route bounds
+    // Fit map to selected route bounds (skip when route detail is open)
     const fitKey = `${selectedRouteIndex}-${routes.length}`;
-    if (fitKey !== lastFitKey.current) {
+    if (fitKey !== lastFitKey.current && !centerOnUserRef.current) {
       lastFitKey.current = fitKey;
       const bounds = tripBounds(selected);
       if (bounds) {
@@ -680,9 +722,32 @@ export function MapView({
     });
   }, [stops]);
 
+  function handleRecenter() {
+    if (!map.current || !userLocation) return;
+    isFollowingRef.current = true;
+    setShowRecenter(false);
+    map.current.flyTo({
+      center: [userLocation.lng, userLocation.lat],
+      zoom: 15,
+      duration: 600,
+      essential: true,
+      padding: FOLLOW_PADDING,
+    });
+  }
+
   return (
     <div className="absolute inset-0">
       <div ref={mapContainer} className="w-full h-full" />
+      {showRecenter && (
+        <button
+          onClick={handleRecenter}
+          className="absolute right-4 z-[105] w-11 h-11 rounded-full bg-white shadow-lg flex items-center justify-center"
+          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 24rem)" }}
+          aria-label="Sentrer på min posisjon"
+        >
+          <img src="/target.svg" width={22} height={22} alt="" />
+        </button>
+      )}
     </div>
   );
 }

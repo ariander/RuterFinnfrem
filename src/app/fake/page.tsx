@@ -121,9 +121,23 @@ export default function FakePage() {
       .catch(console.error);
   }, [userLocation]);
 
-  // Stops
+  // Stops — same caching logic as main page
+  function haversineDist(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+    const R = 6371000;
+    const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+    const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+    const x =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  }
+
+  const lastViewFetchPosRef = useRef<{ lat: number; lng: number } | null>(null);
   const handleViewChange = useCallback((lat: number, lng: number) => {
-    getNearbyStops(lat, lng, 8000)
+    const last = lastViewFetchPosRef.current;
+    if (last && haversineDist(last, { lat, lng }) < 3000) return;
+    lastViewFetchPosRef.current = { lat, lng };
+    getNearbyStops(lat, lng, 10000)
       .then((newStops) => {
         const cache = stopsCacheRef.current;
         let changed = false;
@@ -155,6 +169,7 @@ export default function FakePage() {
         routes={routes}
         selectedRouteIndex={selectedRoute}
         stops={stops}
+        centerOnUser={expandedRoute !== null}
         onViewChange={handleViewChange}
       />
 

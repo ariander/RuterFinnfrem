@@ -22,6 +22,7 @@ export default function Home() {
   const [walkRoute, setWalkRoute] = useState<TripPattern | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
   const [geoError, setGeoError] = useState<string | null>(null);
+  const [userHeading, setUserHeading] = useState<number | null>(null);
 
   // Loading overlay state
   const [loadingVisible, setLoadingVisible] = useState(false);
@@ -54,12 +55,13 @@ export default function Home() {
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setUserHeading(typeof pos.coords.heading === "number" && !isNaN(pos.coords.heading) ? pos.coords.heading : null);
         setGeoError(null);
       },
       (err) => {
         console.error("Geolocation error:", err);
-        // Fallback to Oslo S for development/testing
-        setUserLocation({ lat: 59.9111, lng: 10.7528 });
+        // Fallback to Dronningens gate 40, Oslo for development/testing
+        setUserLocation({ lat: 59.9125292, lng: 10.7489867 });
         setGeoError(null);
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 },
@@ -285,6 +287,7 @@ export default function Home() {
         stops={stops}
         centerOnUser={expandedRoute !== null}
         walkRoute={walkRoute ?? undefined}
+        userHeading={userHeading}
         onViewChange={handleViewChange}
         onStopClick={handleDestinationSelect}
       />
