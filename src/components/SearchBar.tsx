@@ -137,7 +137,7 @@ export const SearchBar = forwardRef<SearchBarRef, SearchBarProps>(function Searc
     <div className="relative flex-1" ref={containerRef}>
       {/* Results — opens upward */}
       {isOpen && (
-        <Card className="absolute bottom-full gap-1 mb-1 w-full bg-white shadow-2xl rounded-lg overflow-hidden border-none py-3 max-h-80 overflow-y-auto z-50">
+        <Card className="absolute top-full gap-1 mt-1 w-full bg-white shadow-2xl rounded-lg overflow-hidden border-none py-3 max-h-80 overflow-y-auto z-50">
           {results.map((res: any, idx: number) => {
             const stopBadge = getStopBadge(res.properties.category);
             const catIcon = !stopBadge ? getCategoryIcon(res.properties.category) : null;
