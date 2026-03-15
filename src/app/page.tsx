@@ -192,9 +192,12 @@ export default function Home() {
     setSearchOpen(false);
   }, []);
 
+  const [routeDetailMinimized, setRouteDetailMinimized] = useState(false);
+
   const handleRouteSelect = useCallback((i: number) => {
     setSelectedRoute(i);
     setExpandedRoute(i);
+    setRouteDetailMinimized(false);
   }, []);
 
   return (
@@ -286,6 +289,7 @@ export default function Home() {
         selectedRouteIndex={selectedRoute}
         stops={stops}
         centerOnUser={expandedRoute !== null}
+        detailMinimized={routeDetailMinimized}
         walkRoute={walkRoute ?? undefined}
         userHeading={userHeading}
         onViewChange={handleViewChange}
@@ -305,6 +309,7 @@ export default function Home() {
           trip={routes[expandedRoute] ?? routes[0]}
           destinationName={destination?.name ?? ""}
           onBack={() => setExpandedRoute(null)}
+          onMinimizedChange={setRouteDetailMinimized}
         />
       )}
 

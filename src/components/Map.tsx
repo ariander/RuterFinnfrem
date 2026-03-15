@@ -15,6 +15,7 @@ interface MapViewProps {
   selectedRouteIndex?: number;
   stops?: Stop[];
   centerOnUser?: boolean;
+  detailMinimized?: boolean;
   walkRoute?: TripPattern;
   userHeading?: number | null;
   onMapClick?: (lat: number, lng: number) => void;
@@ -88,6 +89,7 @@ export function MapView({
   selectedRouteIndex = 0,
   stops,
   centerOnUser,
+  detailMinimized,
   walkRoute,
   userHeading,
   onMapClick,
@@ -537,6 +539,20 @@ export function MapView({
   }, [userLocation]);
 
   const FOLLOW_PADDING = { top: 80, bottom: 460, left: 40, right: 40 };
+  const FOLLOW_PADDING_MINIMIZED = { top: 80, bottom: 160, left: 40, right: 40 };
+
+  // Re-center when detail panel is minimized/expanded
+  const prevDetailMinimized = useRef<boolean | undefined>(undefined);
+  useEffect(() => {
+    if (!map.current || !userLocation || !centerOnUser || !isFollowingRef.current) return;
+    if (prevDetailMinimized.current === detailMinimized) return;
+    prevDetailMinimized.current = detailMinimized;
+    map.current.easeTo({
+      center: [userLocation.lng, userLocation.lat],
+      duration: 400,
+      padding: detailMinimized ? FOLLOW_PADDING_MINIMIZED : FOLLOW_PADDING,
+    });
+  }, [detailMinimized, centerOnUser, userLocation]);
 
   // Zoom to user when entering route detail
   useEffect(() => {
@@ -565,7 +581,7 @@ export function MapView({
     map.current.easeTo({
       center: [userLocation.lng, userLocation.lat],
       duration: 800,
-      padding: FOLLOW_PADDING,
+      padding: detailMinimized ? FOLLOW_PADDING_MINIMIZED : FOLLOW_PADDING,
     });
   }, [userLocation]); // eslint-disable-line react-hooks/exhaustive-deps
 
