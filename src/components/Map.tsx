@@ -535,6 +535,7 @@ export function MapView({
       center: [userLocation.lng, userLocation.lat],
       zoom: 14,
       essential: true,
+      padding: { top: 180, bottom: 80, left: 40, right: 40 },
     });
   }, [userLocation]);
 
@@ -747,7 +748,7 @@ export function MapView({
       zoom: 15,
       duration: 600,
       essential: true,
-      padding: FOLLOW_PADDING,
+      padding: detailMinimized ? FOLLOW_PADDING_MINIMIZED : FOLLOW_PADDING,
     });
   }
 

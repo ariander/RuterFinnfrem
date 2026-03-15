@@ -35,12 +35,9 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange }
   const [expandedLegs, setExpandedLegs] = useState<Set<number>>(new Set());
   const [minimized, setMinimized] = useState(false);
 
-  function toggleMinimized() {
-    setMinimized((m) => {
-      onMinimizedChange?.(!m);
-      return !m;
-    });
-  }
+  useEffect(() => {
+    onMinimizedChange?.(minimized);
+  }, [minimized]); // eslint-disable-line react-hooks/exhaustive-deps
   const [now, setNow] = useState(Date.now());
   const activeLegRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -141,7 +138,7 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange }
             </div>
           )}
           <button
-            onClick={toggleMinimized}
+            onClick={() => setMinimized((m) => !m)}
             className="w-8 h-8 rounded-full flex items-center justify-center bg-ink-primary/5 hover:bg-ink-primary/10 transition-colors shrink-0"
             aria-label={minimized ? "Vis rute" : "Minimer"}
           >
