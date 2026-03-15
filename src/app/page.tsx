@@ -161,7 +161,7 @@ export default function Home() {
               />
             </div>
           </div>
-          {geoError && searchFocused && (
+          {geoError && (
             <div className="mt-2 bg-red-50/90 backdrop-blur-xl rounded-xl px-3 py-2 shadow-lg">
               <p className="text-xs text-red-700">{geoError}</p>
             </div>
