@@ -34,7 +34,7 @@ const PHASES: { from: number; to: number; label: string }[] = [
 
 const DESTINATION = { lat: 59.9131, lng: 10.7628, name: "Tøyen T-banestasjon" };
 const TOTAL_DURATION = TRACK[TRACK.length - 1][2];
-const SPEED = 20; // 20× real time → full journey in ~10.5 s simulated = 3.5 min wall time
+const SPEED = 5; // 5× real time → full journey in ~3.5 min wall time
 
 function interpolate(t: number): { lat: number; lng: number } {
   if (t <= TRACK[0][2]) return { lat: TRACK[0][0], lng: TRACK[0][1] };
@@ -170,7 +170,7 @@ export default function FakePage() {
           {/* Phase label */}
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-ink-primary">{phase}</span>
-            <span className="text-xs text-ink-primary/40 font-mono">{SPEED}× fart</span>
+            <span className="text-xs text-ink-primary/40 font-mono">5× fart</span>
           </div>
 
           {/* Progress bar */}
