@@ -133,6 +133,8 @@
     @apply text-foreground;
     /* Warm beige matching Voyager map — hides the flash before map renders */
     background-color: #ede7df;
+    /* Prevent rubber-banding overscroll revealing browser background */
+    overscroll-behavior-y: none;
   }
   html {
     @apply font-sans;
@@ -176,4 +178,18 @@
 /* Prevent browser zoom on touch over route panel */
 [role="region"] {
   touch-action: manipulation;
+}
+
+/* Search panel: default bottom (mobile), top on desktop or when focused */
+.search-panel {
+  transform: translateX(-50%) translateY(calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 5rem));
+}
+.search-panel.search-panel-focused,
+.search-panel.search-panel-desktop {
+  transform: translateX(-50%);
+}
+@media (hover: hover) and (pointer: fine) {
+  .search-panel {
+    transform: translateX(-50%);
+  }
 }

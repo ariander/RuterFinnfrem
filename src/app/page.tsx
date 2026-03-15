@@ -15,14 +15,6 @@ export default function Home() {
   const [selectedRoute, setSelectedRoute] = useState(0);
   const [expandedRoute, setExpandedRoute] = useState<number | null>(null);
   const [searchFocused, setSearchFocused] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    setIsMobile(
-      navigator.maxTouchPoints > 0 ||
-      window.matchMedia("(pointer: coarse)").matches ||
-      window.innerWidth < 768
-    );
-  }, []);
   const [loading, setLoading] = useState(false);
   const [stops, setStops] = useState<Stop[]>([]);
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -153,13 +145,8 @@ export default function Home() {
       {/* Search panel — animates from bottom to top on focus */}
       {!destination && (
         <div
-          className="fixed left-1/2 z-[110] w-full max-w-md px-4 transition-transform duration-300 ease-in-out"
-          style={{
-            top: "calc(env(safe-area-inset-top, 0px) + 1rem)",
-            transform: (!isMobile || searchFocused)
-              ? "translateX(-50%)"
-              : "translateX(-50%) translateY(calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 5rem))",
-          }}
+          className={`search-panel fixed left-1/2 z-[110] w-full max-w-md px-4 transition-transform duration-300 ease-in-out${searchFocused ? " search-panel-focused" : ""}`}
+          style={{ top: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
         >
           <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-lg px-3 py-2.5">
             <div className="flex items-center gap-2">
