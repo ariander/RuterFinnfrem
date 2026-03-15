@@ -31,11 +31,11 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Ruter Finnfrem",
+  title: "Finn Frem",
   description: "GPS-navigasjon for kollektivtransport",
   appleWebApp: {
     capable: true,
-    title: "Ruter Finnfrem",
+    title: "Finn Frem",
     statusBarStyle: "black-translucent",
   },
   icons: {
