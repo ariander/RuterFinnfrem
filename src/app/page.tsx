@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Search } from "lucide-react";
 import { MapView } from "@/components/Map";
-import { SearchBar } from "@/components/SearchBar";
+import { SearchBar, type SearchBarRef } from "@/components/SearchBar";
 import { RoutePanel } from "@/components/RoutePanel";
 import { RouteDetail } from "@/components/RouteDetail";
 import { searchTrip, type TripPattern } from "@/lib/entur-trip";
@@ -16,6 +16,7 @@ export default function Home() {
   const [selectedRoute, setSelectedRoute] = useState(0);
   const [expandedRoute, setExpandedRoute] = useState<number | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const searchBarRef = useRef<SearchBarRef>(null);
   const [loading, setLoading] = useState(false);
   const [stops, setStops] = useState<Stop[]>([]);
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -147,7 +148,7 @@ export default function Home() {
       {/* Fake search trigger — mobile only, bottom, fades out when search opens */}
       {!destination && (
         <button
-          onClick={() => setSearchOpen(true)}
+          onClick={() => { setSearchOpen(true); searchBarRef.current?.focus(); }}
           className={`search-trigger fixed left-1/2 z-[110] w-full max-w-md px-4${searchOpen ? " search-trigger-hidden" : ""}`}
           style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)", transform: "translateX(-50%)" }}
         >
@@ -171,8 +172,8 @@ export default function Home() {
               <div className="flex-1">
                 <SearchBar
                   onSelect={handleDestinationSelect}
+                  ref={searchBarRef}
                   onClear={handleClearDestination}
-                  shouldFocus={searchOpen}
                   onClose={() => setSearchOpen(false)}
                 />
               </div>

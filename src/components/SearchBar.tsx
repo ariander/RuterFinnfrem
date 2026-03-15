@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Search, X } from "lucide-react";
@@ -53,14 +53,17 @@ function getCategoryIcon(categories: string[] | undefined): CategoryIcon | null 
   return null;
 }
 
+export interface SearchBarRef {
+  focus: () => void;
+}
+
 interface SearchBarProps {
   onSelect: (location: { lat: number; lng: number; name: string }) => void;
   onClear?: () => void;
-  shouldFocus?: boolean;
   onClose?: () => void;
 }
 
-export function SearchBar({ onSelect, onClear, shouldFocus, onClose }: SearchBarProps) {
+export const SearchBar = forwardRef<SearchBarRef, SearchBarProps>(function SearchBar({ onSelect, onClear, onClose }, ref) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -106,12 +109,9 @@ export function SearchBar({ onSelect, onClear, shouldFocus, onClose }: SearchBar
     };
   }, [query]);
 
-  // Focus input when shouldFocus becomes true
-  useEffect(() => {
-    if (shouldFocus) {
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }, [shouldFocus]);
+  useImperativeHandle(ref, () => ({
+    focus: () => inputRef.current?.focus(),
+  }));
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -238,4 +238,4 @@ export function SearchBar({ onSelect, onClear, shouldFocus, onClose }: SearchBar
       </div>
     </div>
   );
-}
+});
