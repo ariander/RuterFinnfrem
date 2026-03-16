@@ -21,24 +21,8 @@ interface MapViewProps {
   onMapClick?: (lat: number, lng: number) => void;
   onViewChange?: (lat: number, lng: number) => void;
   onStopClick?: (stop: { lat: number; lng: number; name: string }) => void;
-  vehicleLegs?: Array<{
-    serviceJourneyId: string;
-    mode: string;
-    transportSubmode?: string;
-    color: string;
-  }>;
-  onVehicleUpdate?: (positions: Array<{ serviceJourneyId: string; occupancyStatus?: string }>) => void;
   /** Dynamic padding so the user dot appears centred in the space between the top and bottom UI cards */
   followPadding?: { top: number; bottom: number; left: number; right: number };
-  fakeVehicles?: Array<{
-    id: string;
-    lat: number;
-    lng: number;
-    bearing?: number;
-    mode: string;
-    transportSubmode?: string;
-    occupancyStatus?: string;
-  }>;
 }
 
 const STOP_COLORS: Record<string, string> = {
@@ -100,48 +84,6 @@ function tripBounds(trip: TripPattern): maplibre.LngLatBoundsLike | null {
   ];
 }
 
-/** Build the DOM element for a vehicle map marker */
-function buildVehicleMarkerEl(icon: string, color: string, bearing: number | null | undefined): HTMLDivElement {
-  const el = document.createElement("div");
-  el.className = "vehicle-marker";
-  el.style.cssText = "width:44px;height:44px;position:relative;overflow:visible;";
-  const hasBearing = bearing !== null && bearing !== undefined;
-  el.innerHTML = `
-    <div class="vehicle-bearing-arrow" style="position:absolute;inset:0;pointer-events:none;${hasBearing ? `transform:rotate(${bearing}deg)` : "opacity:0"}">
-      <div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:9px solid ${color};filter:drop-shadow(0 1px 1px rgba(0,0,0,0.15))"></div>
-    </div>
-    <div style="position:absolute;inset:0;border-radius:50%;background:white;border:3px solid ${color};box-shadow:0 2px 10px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;">
-      <img class="vehicle-mode-icon" src="${icon}" width="22" height="22" style="display:block" />
-    </div>
-  `;
-  return el;
-}
-
-function updateVehicleBearing(el: HTMLElement, bearing: number | null | undefined) {
-  const arrow = el.querySelector(".vehicle-bearing-arrow") as HTMLElement | null;
-  if (!arrow) return;
-  if (bearing !== null && bearing !== undefined) {
-    arrow.style.transform = `rotate(${bearing}deg)`;
-    arrow.style.opacity = "1";
-  } else {
-    arrow.style.opacity = "0";
-  }
-}
-
-function vehicleIconInfo(mode: string, transportSubmode?: string): { icon: string; color: string } {
-  const REGIONAL_SUBMODES = ["regionalBus", "expressBus", "airportBus", "airportLinkBus", "shuttleBus"];
-  if (mode === "bus" || mode === "coach") {
-    if (mode === "coach" || (transportSubmode && REGIONAL_SUBMODES.includes(transportSubmode))) {
-      return { icon: "/live_regionalbus.svg", color: "#75A300" };
-    }
-    return { icon: "/live_bus.svg", color: "#E60000" };
-  }
-  if (mode === "tram") return { icon: "/live_tram.svg", color: "#0B91EF" };
-  if (mode === "metro") return { icon: "/live_metro.svg", color: "#EC700C" };
-  if (mode === "rail") return { icon: "/live_train.svg", color: "#003087" };
-  if (mode === "water") return { icon: "/live_boat.svg", color: "#682C88" };
-  return { icon: "/live_bus.svg", color: "#E60000" };
-}
 
 export function MapView({
   userLocation,
@@ -156,9 +98,6 @@ export function MapView({
   onMapClick,
   onViewChange,
   onStopClick,
-  vehicleLegs,
-  fakeVehicles,
-  onVehicleUpdate,
   followPadding,
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -172,22 +111,8 @@ export function MapView({
   onViewChangeRef.current = onViewChange;
   const onStopClickRef = useRef(onStopClick);
   onStopClickRef.current = onStopClick;
-  const onVehicleUpdateRef = useRef(onVehicleUpdate);
-  onVehicleUpdateRef.current = onVehicleUpdate;
   const userHeadingRef = useRef<number | null>(null);
   userHeadingRef.current = userHeading ?? null;
-
-  // Fake vehicle markers ref (for /fake page)
-  const fakeVehicleMarkersRef = useRef<Map<string, maplibre.Marker>>(new Map());
-
-  // Vehicle tracking refs
-  const vehicleMarkersRef = useRef<Map<string, maplibre.Marker>>(new Map());
-  const vehicleInterpRef = useRef<Map<string, {
-    fromLat: number; fromLng: number;
-    toLat: number; toLng: number;
-    startMs: number; durationMs: number;
-  }>>(new Map());
-  const rafRef = useRef<number | null>(null);
 
   // Track previous route bounds to avoid re-fitting on every render
   const lastFitKey = useRef("");
@@ -247,7 +172,14 @@ export function MapView({
           style: voyagerStyle,
           center: [10.7522, 59.9139],
           zoom: 12,
+          attributionControl: false,
         });
+
+        // Compact attribution in top-right (away from cards)
+        map.current.addControl(
+          new maplibre.AttributionControl({ compact: true }),
+          "top-right",
+        );
 
         const fireViewChange = () => {
           const c = map.current?.getCenter();
@@ -844,128 +776,6 @@ export function MapView({
       })),
     });
   }, [stops]);
-
-  // Vehicle positions: poll every 10s, smooth interpolation with RAF
-  useEffect(() => {
-    if (!vehicleLegs || vehicleLegs.length === 0) {
-      // Clean up all vehicle markers
-      vehicleMarkersRef.current.forEach(m => m.remove());
-      vehicleMarkersRef.current.clear();
-      vehicleInterpRef.current.clear();
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      return;
-    }
-
-    let cancelled = false;
-
-    async function poll() {
-      if (cancelled || !map.current) return;
-      const ids = vehicleLegs!.map(l => l.serviceJourneyId);
-      try {
-        const { fetchVehiclePositions } = await import("@/lib/entur-vehicles");
-        const positions = await fetchVehiclePositions(ids);
-
-        if (cancelled) return;
-
-        // Notify parent with occupancy data
-        onVehicleUpdateRef.current?.(positions.map(p => ({
-          serviceJourneyId: p.serviceJourneyId,
-          occupancyStatus: p.occupancyStatus,
-        })));
-
-        for (const pos of positions) {
-          const leg = vehicleLegs!.find(l => l.serviceJourneyId === pos.serviceJourneyId);
-          if (!leg) continue;
-          const { icon, color } = vehicleIconInfo(leg.mode, leg.transportSubmode);
-          const key = pos.serviceJourneyId;
-
-          // Create marker if needed
-          if (!vehicleMarkersRef.current.has(key)) {
-            const el = buildVehicleMarkerEl(icon, color, pos.bearing);
-            const marker = new maplibre.Marker({ element: el, anchor: "center" })
-              .setLngLat([pos.lng, pos.lat])
-              .addTo(map.current!);
-            vehicleMarkersRef.current.set(key, marker);
-          }
-
-          // Set interpolation target
-          const currentMarker = vehicleMarkersRef.current.get(key)!;
-          const currentLngLat = currentMarker.getLngLat();
-          vehicleInterpRef.current.set(key, {
-            fromLat: currentLngLat.lat,
-            fromLng: currentLngLat.lng,
-            toLat: pos.lat,
-            toLng: pos.lng,
-            startMs: Date.now(),
-            durationMs: 10000,
-          });
-
-          // Update bearing arrow
-          updateVehicleBearing(currentMarker.getElement(), pos.bearing);
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    // RAF interpolation loop
-    function animationLoop() {
-      const now = Date.now();
-      vehicleInterpRef.current.forEach((interp, key) => {
-        const marker = vehicleMarkersRef.current.get(key);
-        if (!marker) return;
-        const t = Math.min(1, (now - interp.startMs) / interp.durationMs);
-        // ease-out cubic
-        const ease = 1 - Math.pow(1 - t, 3);
-        const lat = interp.fromLat + (interp.toLat - interp.fromLat) * ease;
-        const lng = interp.fromLng + (interp.toLng - interp.fromLng) * ease;
-        marker.setLngLat([lng, lat]);
-      });
-      if (!cancelled) rafRef.current = requestAnimationFrame(animationLoop);
-    }
-
-    poll();
-    const interval = setInterval(poll, 10_000);
-    rafRef.current = requestAnimationFrame(animationLoop);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      vehicleMarkersRef.current.forEach(m => m.remove());
-      vehicleMarkersRef.current.clear();
-      vehicleInterpRef.current.clear();
-    };
-  }, [vehicleLegs]);
-
-  // Fake vehicles: static markers for /fake page testing
-  useEffect(() => {
-    if (!map.current || !mapReady) return;
-
-    // Remove any markers not in the new list
-    const newIds = new Set((fakeVehicles ?? []).map(v => v.id));
-    fakeVehicleMarkersRef.current.forEach((m, id) => {
-      if (!newIds.has(id)) { m.remove(); fakeVehicleMarkersRef.current.delete(id); }
-    });
-
-    if (!fakeVehicles || fakeVehicles.length === 0) return;
-
-    for (const v of fakeVehicles) {
-      const { icon, color } = vehicleIconInfo(v.mode, v.transportSubmode);
-
-      if (fakeVehicleMarkersRef.current.has(v.id)) {
-        const marker = fakeVehicleMarkersRef.current.get(v.id)!;
-        marker.setLngLat([v.lng, v.lat]);
-        updateVehicleBearing(marker.getElement(), v.bearing);
-      } else {
-        const el = buildVehicleMarkerEl(icon, color, v.bearing);
-        const marker = new maplibre.Marker({ element: el, anchor: "center" })
-          .setLngLat([v.lng, v.lat])
-          .addTo(map.current!);
-        fakeVehicleMarkersRef.current.set(v.id, marker);
-      }
-    }
-  }, [fakeVehicles, mapReady]);
 
   function handleRecenter() {
     if (!map.current || !userLocation) return;

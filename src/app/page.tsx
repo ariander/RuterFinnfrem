@@ -73,9 +73,10 @@ export default function Home() {
   // Search for trips when destination changes OR when user has moved significantly off-route
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSearchedDestRef = useRef<{ lat: number; lng: number } | null>(null);
-  const lastSearchedOriginRef = useRef<{ lat: number; lng: number } | null>(null);
   const expandedRouteRef = useRef(expandedRoute);
   expandedRouteRef.current = expandedRoute;
+  const routesRef = useRef(routes);
+  routesRef.current = routes;
 
   useEffect(() => {
     if (!userLocation || !destination) return;
@@ -86,16 +87,16 @@ export default function Home() {
       lastSearchedDestRef.current.lng === destination.lng
     );
 
-    // Re-search when user has moved >200m while actively navigating (off-route detection)
-    const movedFarOffRoute =
-      expandedRouteRef.current !== null &&
-      lastSearchedOriginRef.current !== null &&
-      haversineDist(lastSearchedOriginRef.current, userLocation) > 200;
+    // Off-route: check perpendicular distance from user to current/upcoming walk leg polylines
+    const activeRoute =
+      expandedRouteRef.current !== null
+        ? (routesRef.current[expandedRouteRef.current] ?? routesRef.current[0])
+        : null;
+    const offRoute = activeRoute != null && isOffRoute(userLocation, activeRoute);
 
-    if (!destChanged && !movedFarOffRoute) return;
+    if (!destChanged && !offRoute) return;
 
     lastSearchedDestRef.current = { lat: destination.lat, lng: destination.lng };
-    lastSearchedOriginRef.current = { lat: userLocation.lat, lng: userLocation.lng };
 
     if (searchRef.current) clearTimeout(searchRef.current);
     searchRef.current = setTimeout(async () => {
@@ -144,7 +145,6 @@ export default function Home() {
           if (sameIdx >= 0) setExpandedRoute(sameIdx);
           // else: trip disappeared (completed?), leave expandedRoute at current index
         }
-        lastSearchedOriginRef.current = { lat: userLocation.lat, lng: userLocation.lng };
       } catch (err) {
         console.error("Route refresh error:", err);
       }
@@ -164,6 +164,76 @@ export default function Home() {
       Math.sin(dLat / 2) ** 2 +
       Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
     return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  }
+
+  // ── Off-route detection helpers ──────────────────────────────────────────
+  function decodePolyline(encoded: string): [number, number][] {
+    const pts: [number, number][] = [];
+    let i = 0, lat = 0, lng = 0;
+    while (i < encoded.length) {
+      let b, shift = 0, val = 0;
+      do { b = encoded.charCodeAt(i++) - 63; val |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      lat += val & 1 ? ~(val >> 1) : val >> 1;
+      shift = 0; val = 0;
+      do { b = encoded.charCodeAt(i++) - 63; val |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      lng += val & 1 ? ~(val >> 1) : val >> 1;
+      pts.push([lat / 1e5, lng / 1e5]);
+    }
+    return pts;
+  }
+
+  function distToSegmentM(
+    p: { lat: number; lng: number },
+    a: [number, number],
+    b: [number, number],
+  ): number {
+    const R = 111320;
+    const cosLat = Math.cos((p.lat * Math.PI) / 180);
+    const px = (p.lng - a[1]) * R * cosLat;
+    const py = (p.lat - a[0]) * R;
+    const dx = (b[1] - a[1]) * R * cosLat;
+    const dy = (b[0] - a[0]) * R;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return Math.hypot(px, py);
+    const t = Math.max(0, Math.min(1, (px * dx + py * dy) / lenSq));
+    return Math.hypot(t * dx - px, t * dy - py);
+  }
+
+  // Returns true if user is off any active leg's polyline:
+  //   walk legs    → >80m  (precise on foot)
+  //   transit legs → >300m (only while actively riding: start passed, end not yet)
+  function isOffRoute(
+    userLoc: { lat: number; lng: number },
+    route: TripPattern,
+  ): boolean {
+    const now = Date.now();
+    for (const leg of route.legs) {
+      const legStartMs = new Date(leg.expectedStartTime).getTime();
+      const legEndMs   = new Date(leg.expectedEndTime).getTime();
+      if (!leg.pointsOnLink?.points) continue;
+
+      if (leg.mode === "foot") {
+        if (legEndMs < now - 90_000) continue; // completed >90s ago
+        const pts = decodePolyline(leg.pointsOnLink.points);
+        if (pts.length < 2) continue;
+        let minDist = Infinity;
+        for (let i = 0; i < pts.length - 1; i++)
+          minDist = Math.min(minDist, distToSegmentM(userLoc, pts[i], pts[i + 1]));
+        if (minDist > 80) return true;
+      } else {
+        // Only check transit while the user should actively be riding
+        // (60s grace on boarding side, 60s grace on alighting side)
+        if (legStartMs > now - 60_000) continue; // not boarded yet
+        if (legEndMs   < now - 60_000) continue; // already alighted
+        const pts = decodePolyline(leg.pointsOnLink.points);
+        if (pts.length < 2) continue;
+        let minDist = Infinity;
+        for (let i = 0; i < pts.length - 1; i++)
+          minDist = Math.min(minDist, distToSegmentM(userLoc, pts[i], pts[i + 1]));
+        if (minDist > 300) return true;
+      }
+    }
+    return false;
   }
 
   useEffect(() => {
@@ -279,7 +349,7 @@ export default function Home() {
         <button
           onClick={() => { setSearchOpen(true); searchBarRef.current?.focus(); }}
           className={`search-trigger fixed left-1/2 z-[110] w-full max-w-md px-4${searchOpen ? " search-trigger-hidden" : ""}`}
-          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 0.5rem)", transform: "translateX(-50%)" }}
+          style={{ bottom: "env(safe-area-inset-bottom, 0px)", transform: "translateX(-50%)" }}
         >
           <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-lg px-4 h-[52px] flex items-center gap-3">
             <Search size={16} className="text-ink-primary/50 shrink-0" />
@@ -327,7 +397,7 @@ export default function Home() {
         <div
           ref={topCardRef}
           className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4"
-          style={{ top: "calc(env(safe-area-inset-top, 0px) + 0.5rem)" }}
+          style={{ top: "env(safe-area-inset-top, 0px)" }}
         >
           <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-lg px-3 py-2.5">
             <div className="flex flex-col gap-0 px-2">
@@ -395,7 +465,7 @@ export default function Home() {
         <div
           ref={walkPanelRef}
           className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 animate-in slide-in-from-bottom-4 fade-in duration-300"
-          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 0.5rem)" }}
+          style={{ bottom: "env(safe-area-inset-bottom, 0px)" }}
         >
           <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/5 overflow-hidden">
             {/* Header */}

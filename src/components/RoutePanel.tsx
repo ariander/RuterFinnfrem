@@ -119,7 +119,7 @@ export function RoutePanel({ routes, selectedIndex, onSelect, walkRoute, onBound
     <div
       ref={outerRef}
       className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 animate-in slide-in-from-bottom-4 fade-in duration-300"
-      style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 0.5rem)" }}
+      style={{ bottom: "env(safe-area-inset-bottom, 0px)" }}
     >
       <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/5 overflow-hidden">
         <div className="px-4 pt-3 pb-2">

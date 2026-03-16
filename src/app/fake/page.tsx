@@ -265,8 +265,6 @@ export default function FakePage() {
         centerOnUser={expandedRoute !== null}
         detailMinimized={routeDetailMinimized}
         onViewChange={handleViewChange}
-        vehicleLegs={vehicleLegs}
-        fakeVehicles={FAKE_VEHICLES}
       />
 
       {routes.length > 0 && expandedRoute === null && (
