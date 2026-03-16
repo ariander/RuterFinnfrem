@@ -360,14 +360,14 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
                         {isTransfer ? (
                           <>
                             <div className="text-xs text-ink-primary/60 flex items-center gap-1.5">
-                              <span>⏱</span>
+                              <img src="/Platform.svg" width={14} height={14} alt="" className="opacity-70" />
                               <span>Overgang</span>
                             </div>
                             {leg.fromPlace.quay?.publicCode && leg.toPlace.quay?.publicCode && (
-                              <div className="text-[11px] text-ink-primary/60 bg-ink-primary/5 px-1.5 py-0.5 rounded">
-                                {platformLabel(leg.mode, leg.fromPlace.quay.publicCode)}{" "}
-                                →{" "}
-                                {platformLabel(leg.mode, leg.toPlace.quay.publicCode)}
+                              <div className="text-[11px] text-ink-primary/60 bg-ink-primary/5 px-1.5 py-0.5 rounded inline-flex items-center gap-1.5">
+                                <span>{platformLabel(leg.mode, leg.fromPlace.quay.publicCode)}</span>
+                                <img src="/ArrowRight.svg" width={12} height={12} alt="" className="opacity-50" />
+                                <span>{platformLabel(leg.mode, leg.toPlace.quay.publicCode)}</span>
                               </div>
                             )}
                           </>
