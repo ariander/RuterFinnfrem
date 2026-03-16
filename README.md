@@ -1,8 +1,8 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+FinnFrem er en mobil-først prototype for GPS-basert kollektivnavigasjon bygget som en PWA med Next.js.
 
 ## Getting Started
 
-First, run the development server:
+For å starte utviklingsserveren:
 
 ```bash
 npm run dev
@@ -14,23 +14,35 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Åpne `http://localhost:3000` i nettleseren for å se appen.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Teknisk oversikt
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Next.js (App Router) med TypeScript og ESLint v9.
+- UI: Tailwind CSS v4 + shadcn/ui + Ruter-fonten `TID UI`.
+- Kart: MapLibre GL JS med egen font-endepunkt (`/api/fonts/...`).
+- Datakilder:
+  - Entur Geocoder (`api.entur.io/geocoder/v1/`) for søk etter steder/stopp.
+  - Entur Journey Planner (`api.entur.io/journey-planner/v3/graphql`) for ruter og stopp.
 
-## Learn More
+## Miljøvariabler
 
-To learn more about Next.js, take a look at the following resources:
+Per nå brukes kun Entur uten eksplisitte nøkler i denne POC-en. Dersom Entur krever identifikasjon kan du legge til et klientnavn i `.env.local`:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+ET_CLIENT_NAME=ruterfinnfrem-poc
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+og bruke den i fetch-kallene ved behov.
 
-## Deploy on Vercel
+## Hovedstruktur
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `src/app/page.tsx`: Orkestrerer kart, søk, ruteoversikt og detaljer.
+- `src/components/Map.tsx`: Kartvisning med ruter, stopp og brukerposisjon.
+- `src/components/SearchBar.tsx`: Entur-geocodingsøk med tastaturnavigasjon.
+- `src/lib/entur-trip.ts`: Typer og helpers for Entur-ruteforespørsler.
+- `src/lib/entur-stops.ts`: Henting og normalisering av nærliggende stopp.
+- `src/hooks/useUserLocation.ts`: Hook for geolokasjon og heading.
+- `src/hooks/useNearbyStops.ts`: Hook for stopp-cache rundt bruker og kartutsnitt.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Isokron-funksjonaliteten som tidligere brukte Targomo er fjernet; appen viser nå ruter og reisetider basert på Entur alene.

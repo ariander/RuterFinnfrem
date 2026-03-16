@@ -7,10 +7,13 @@ import { SearchBar, type SearchBarRef } from "@/components/SearchBar";
 import { RoutePanel } from "@/components/RoutePanel";
 import { RouteDetail } from "@/components/RouteDetail";
 import { searchTrip, searchWalkRoute, formatDuration, type TripPattern } from "@/lib/entur-trip";
-import { getNearbyStops, type Stop } from "@/lib/entur-stops";
+import type { Stop } from "@/lib/entur-stops";
+import { useUserLocation } from "@/hooks/useUserLocation";
+import { useNearbyStops } from "@/hooks/useNearbyStops";
+import { isOffRoute } from "@/lib/offroute";
 
 export default function Home() {
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const { userLocation, userHeading, geoError } = useUserLocation();
   const [destination, setDestination] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [routes, setRoutes] = useState<TripPattern[]>([]);
   const [selectedRoute, setSelectedRoute] = useState(0);
@@ -20,9 +23,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [walkOnly, setWalkOnly] = useState(false);
   const [walkRoute, setWalkRoute] = useState<TripPattern | null>(null);
-  const [stops, setStops] = useState<Stop[]>([]);
-  const [geoError, setGeoError] = useState<string | null>(null);
-  const [userHeading, setUserHeading] = useState<number | null>(null);
+  const { stops, handleViewChange } = useNearbyStops(userLocation);
 
   // Loading overlay state
   const [loadingVisible, setLoadingVisible] = useState(false);
@@ -44,31 +45,6 @@ export default function Home() {
       }, 300);
     }
   }, [loading]);
-
-  // Start GPS tracking on mount
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      setGeoError("Geolocation støttes ikke i denne nettleseren.");
-      return;
-    }
-
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setUserHeading(typeof pos.coords.heading === "number" && !isNaN(pos.coords.heading) ? pos.coords.heading : null);
-        setGeoError(null);
-      },
-      (err) => {
-        console.error("Geolocation error:", err);
-        // Fallback to Dronningens gate 40, Oslo for development/testing
-        setUserLocation({ lat: 59.9125292, lng: 10.7489867 });
-        setGeoError(null);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 },
-    );
-
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
 
   // Search for trips when destination changes OR when user has moved significantly off-route
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -152,129 +128,7 @@ export default function Home() {
     return () => clearInterval(id);
   }, [expandedRoute, userLocation, destination]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Stops cache — fetched around user position, re-fetched when moved >500m
-  const stopsCacheRef = useRef<Map<string, Stop>>(new Map());
-  const lastStopFetchPosRef = useRef<{ lat: number; lng: number } | null>(null);
-
-  function haversineDist(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-    const R = 6371000;
-    const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-    const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-    const x =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-  }
-
-  // ── Off-route detection helpers ──────────────────────────────────────────
-  function decodePolyline(encoded: string): [number, number][] {
-    const pts: [number, number][] = [];
-    let i = 0, lat = 0, lng = 0;
-    while (i < encoded.length) {
-      let b, shift = 0, val = 0;
-      do { b = encoded.charCodeAt(i++) - 63; val |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-      lat += val & 1 ? ~(val >> 1) : val >> 1;
-      shift = 0; val = 0;
-      do { b = encoded.charCodeAt(i++) - 63; val |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-      lng += val & 1 ? ~(val >> 1) : val >> 1;
-      pts.push([lat / 1e5, lng / 1e5]);
-    }
-    return pts;
-  }
-
-  function distToSegmentM(
-    p: { lat: number; lng: number },
-    a: [number, number],
-    b: [number, number],
-  ): number {
-    const R = 111320;
-    const cosLat = Math.cos((p.lat * Math.PI) / 180);
-    const px = (p.lng - a[1]) * R * cosLat;
-    const py = (p.lat - a[0]) * R;
-    const dx = (b[1] - a[1]) * R * cosLat;
-    const dy = (b[0] - a[0]) * R;
-    const lenSq = dx * dx + dy * dy;
-    if (lenSq === 0) return Math.hypot(px, py);
-    const t = Math.max(0, Math.min(1, (px * dx + py * dy) / lenSq));
-    return Math.hypot(t * dx - px, t * dy - py);
-  }
-
-  // Returns true if user is off any active leg's polyline:
-  //   walk legs    → >80m  (precise on foot)
-  //   transit legs → >300m (only while actively riding: start passed, end not yet)
-  function isOffRoute(
-    userLoc: { lat: number; lng: number },
-    route: TripPattern,
-  ): boolean {
-    const now = Date.now();
-    for (const leg of route.legs) {
-      const legStartMs = new Date(leg.expectedStartTime).getTime();
-      const legEndMs   = new Date(leg.expectedEndTime).getTime();
-      if (!leg.pointsOnLink?.points) continue;
-
-      if (leg.mode === "foot") {
-        if (legEndMs < now - 90_000) continue; // completed >90s ago
-        const pts = decodePolyline(leg.pointsOnLink.points);
-        if (pts.length < 2) continue;
-        let minDist = Infinity;
-        for (let i = 0; i < pts.length - 1; i++)
-          minDist = Math.min(minDist, distToSegmentM(userLoc, pts[i], pts[i + 1]));
-        if (minDist > 80) return true;
-      } else {
-        // Only check transit while the user should actively be riding
-        // (60s grace on boarding side, 60s grace on alighting side)
-        if (legStartMs > now - 60_000) continue; // not boarded yet
-        if (legEndMs   < now - 60_000) continue; // already alighted
-        const pts = decodePolyline(leg.pointsOnLink.points);
-        if (pts.length < 2) continue;
-        let minDist = Infinity;
-        for (let i = 0; i < pts.length - 1; i++)
-          minDist = Math.min(minDist, distToSegmentM(userLoc, pts[i], pts[i + 1]));
-        if (minDist > 300) return true;
-      }
-    }
-    return false;
-  }
-
-  useEffect(() => {
-    if (!userLocation) return;
-    const last = lastStopFetchPosRef.current;
-    if (last && haversineDist(last, userLocation) < 500) return;
-    lastStopFetchPosRef.current = userLocation;
-    getNearbyStops(userLocation.lat, userLocation.lng, 15000)
-      .then((newStops) => {
-        const cache = stopsCacheRef.current;
-        let changed = false;
-        for (const s of newStops) {
-          if (!cache.has(s.id)) {
-            cache.set(s.id, s);
-            changed = true;
-          }
-        }
-        if (changed) setStops(Array.from(cache.values()));
-      })
-      .catch(console.error);
-  }, [userLocation]);
-
-  const lastViewFetchPosRef = useRef<{ lat: number; lng: number } | null>(null);
-  const handleViewChange = useCallback((lat: number, lng: number) => {
-    const last = lastViewFetchPosRef.current;
-    if (last && haversineDist(last, { lat, lng }) < 3000) return;
-    lastViewFetchPosRef.current = { lat, lng };
-    getNearbyStops(lat, lng, 10000)
-      .then((newStops) => {
-        const cache = stopsCacheRef.current;
-        let changed = false;
-        for (const s of newStops) {
-          if (!cache.has(s.id)) {
-            cache.set(s.id, s);
-            changed = true;
-          }
-        }
-        if (changed) setStops(Array.from(cache.values()));
-      })
-      .catch(console.error);
-  }, []);
+  // (stopp-hentelogikk håndteres nå av useNearbyStops)
 
   const handleDestinationSelect = useCallback(
     (loc: { lat: number; lng: number; name: string }) => {

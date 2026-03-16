@@ -21,6 +21,21 @@ type CategoryIcon =
   | { type: "emoji"; value: string }
   | { type: "svg"; src: string };
 
+interface EnturFeatureProperties {
+  id: string;
+  name: string;
+  category?: string[];
+  locality?: string;
+  county?: string;
+  label?: string;
+}
+
+interface EnturFeature {
+  type: "Feature";
+  geometry: { type: "Point"; coordinates: [number, number] };
+  properties: EnturFeatureProperties;
+}
+
 const CATEGORY_ICON: Record<string, CategoryIcon> = {
   museum:           { type: "emoji", value: "🏛️" },
   cafe:             { type: "emoji", value: "☕" },
@@ -65,7 +80,7 @@ interface SearchBarProps {
 
 export const SearchBar = forwardRef<SearchBarRef, SearchBarProps>(function SearchBar({ onSelect, onClear, onClose }, ref) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<EnturFeature[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -96,9 +111,9 @@ export const SearchBar = forwardRef<SearchBarRef, SearchBarProps>(function Searc
           )}&lang=no&layers=venue,stop,address`
         );
         const data = await res.json();
-        const features = data.features || [];
+        const features: EnturFeature[] = data.features || [];
         // Prioritize transit stops/stations at the top
-        const sorted = [...features].sort((a: any, b: any) => {
+        const sorted = [...features].sort((a, b) => {
           const aIsTransit = getStopBadge(a.properties.category) ? 0 : 1;
           const bIsTransit = getStopBadge(b.properties.category) ? 0 : 1;
           return aIsTransit - bIsTransit;
