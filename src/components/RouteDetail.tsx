@@ -274,6 +274,11 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
                 ? stopName(leg.fromPlace.name, "Min posisjon")
                 : leg.fromPlace.name;
 
+              // Kort gå-ben på samme holdeplass → behandles som overgang
+              const sameStop = leg.fromPlace.name === leg.toPlace.name;
+              const shortDistance = leg.distance <= 50; // terskel for å kalle det overgang
+              const isTransfer = isWalk && sameStop && shortDistance;
+
               // Delay for departure
               const depDelay = delayMinutes(leg.aimedStartTime, leg.expectedStartTime);
 
@@ -349,17 +354,35 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
                       </div>
                     </div>
 
-                    {/* Walk */}
+                    {/* Walk / overgang */}
                     {isWalk && (
                       <div className="flex items-center gap-3 mb-1">
-                        <div className="text-xs text-ink-primary/50 flex items-center gap-1.5">
-                          <span>🚶</span>
-                          <span>Gå {Math.round(leg.duration / 60)} min · {Math.round(leg.distance)} m</span>
-                        </div>
-                        <div className="text-xs text-ink-primary/30 flex items-center gap-1.5">
-                          <span>🏃</span>
-                          <span>Løp {Math.max(1, Math.round(leg.duration / 120))} min</span>
-                        </div>
+                        {isTransfer ? (
+                          <>
+                            <div className="text-xs text-ink-primary/60 flex items-center gap-1.5">
+                              <span>⏱</span>
+                              <span>Overgang</span>
+                            </div>
+                            {leg.fromPlace.quay?.publicCode && leg.toPlace.quay?.publicCode && (
+                              <div className="text-[11px] text-ink-primary/60 bg-ink-primary/5 px-1.5 py-0.5 rounded">
+                                {platformLabel(leg.mode, leg.fromPlace.quay.publicCode)}{" "}
+                                →{" "}
+                                {platformLabel(leg.mode, leg.toPlace.quay.publicCode)}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <div className="text-xs text-ink-primary/50 flex items-center gap-1.5">
+                              <span>🚶</span>
+                              <span>Gå {Math.round(leg.duration / 60)} min · {Math.round(leg.distance)} m</span>
+                            </div>
+                            <div className="text-xs text-ink-primary/30 flex items-center gap-1.5">
+                              <span>🏃</span>
+                              <span>Løp {Math.max(1, Math.round(leg.duration / 120))} min</span>
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
 
