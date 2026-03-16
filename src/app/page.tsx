@@ -6,7 +6,7 @@ import { MapView } from "@/components/Map";
 import { SearchBar, type SearchBarRef } from "@/components/SearchBar";
 import { RoutePanel } from "@/components/RoutePanel";
 import { RouteDetail } from "@/components/RouteDetail";
-import { searchTrip, searchWalkRoute, formatDuration, getModeColor, type TripPattern } from "@/lib/entur-trip";
+import { searchTrip, searchWalkRoute, formatDuration, type TripPattern } from "@/lib/entur-trip";
 import { getNearbyStops, type Stop } from "@/lib/entur-stops";
 
 export default function Home() {
@@ -70,23 +70,32 @@ export default function Home() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
 
-  // Search for trips only when destination changes (not on every GPS update)
-  // GPS-triggered re-runs would cause race conditions: a stale empty result
-  // can overwrite valid routes just because GPS drifted 1m.
+  // Search for trips when destination changes OR when user has moved significantly off-route
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSearchedDestRef = useRef<{ lat: number; lng: number } | null>(null);
+  const lastSearchedOriginRef = useRef<{ lat: number; lng: number } | null>(null);
+  const expandedRouteRef = useRef(expandedRoute);
+  expandedRouteRef.current = expandedRoute;
 
   useEffect(() => {
     if (!userLocation || !destination) return;
 
-    // Skip if destination coords haven't changed (pure GPS drift update)
-    if (
+    const destChanged = !(
       lastSearchedDestRef.current &&
       lastSearchedDestRef.current.lat === destination.lat &&
       lastSearchedDestRef.current.lng === destination.lng
-    ) return;
+    );
+
+    // Re-search when user has moved >200m while actively navigating (off-route detection)
+    const movedFarOffRoute =
+      expandedRouteRef.current !== null &&
+      lastSearchedOriginRef.current !== null &&
+      haversineDist(lastSearchedOriginRef.current, userLocation) > 200;
+
+    if (!destChanged && !movedFarOffRoute) return;
 
     lastSearchedDestRef.current = { lat: destination.lat, lng: destination.lng };
+    lastSearchedOriginRef.current = { lat: userLocation.lat, lng: userLocation.lng };
 
     if (searchRef.current) clearTimeout(searchRef.current);
     searchRef.current = setTimeout(async () => {
@@ -94,7 +103,9 @@ export default function Home() {
       try {
         const trips = await searchTrip(userLocation, destination, 5);
         setRoutes(trips);
-        setSelectedRoute(0);
+        if (expandedRouteRef.current === null) {
+          setSelectedRoute(0);
+        }
         setWalkOnly(trips.length === 0);
       } catch (err) {
         console.error("Trip search error:", err);
@@ -119,19 +130,27 @@ export default function Home() {
       .catch(console.error);
   }, [destination]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Periodic route refresh when detail is open
+  // Periodic route refresh when detail is open — anchor to the currently expanded trip
   useEffect(() => {
     if (expandedRoute === null || !userLocation || !destination) return;
+    const anchorStartTime = routes[expandedRoute]?.startTime ?? null;
     const id = setInterval(async () => {
       try {
         const trips = await searchTrip(userLocation, destination, 5);
         setRoutes(trips);
+        // Try to keep the user on the same trip after a refresh
+        if (anchorStartTime) {
+          const sameIdx = trips.findIndex(t => t.startTime === anchorStartTime);
+          if (sameIdx >= 0) setExpandedRoute(sameIdx);
+          // else: trip disappeared (completed?), leave expandedRoute at current index
+        }
+        lastSearchedOriginRef.current = { lat: userLocation.lat, lng: userLocation.lng };
       } catch (err) {
         console.error("Route refresh error:", err);
       }
     }, 60_000);
     return () => clearInterval(id);
-  }, [expandedRoute, userLocation, destination]);
+  }, [expandedRoute, userLocation, destination]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Stops cache — fetched around user position, re-fetched when moved >500m
   const stopsCacheRef = useRef<Map<string, Stop>>(new Map());
@@ -207,7 +226,6 @@ export default function Home() {
   }, []);
 
   const [routeDetailMinimized, setRouteDetailMinimized] = useState(false);
-  const [vehicleOccupancy, setVehicleOccupancy] = useState<Record<string, string>>({});
 
   // Dynamic map follow-padding: measure top card + bottom panel heights
   const topCardRef = useRef<HTMLDivElement>(null);
@@ -247,37 +265,12 @@ export default function Home() {
     [topPad, bottomPad],
   );
 
-  const handleVehicleUpdate = useCallback(
-    (positions: Array<{ serviceJourneyId: string; occupancyStatus?: string }>) => {
-      setVehicleOccupancy((prev) => {
-        const next = { ...prev };
-        for (const p of positions) {
-          if (p.occupancyStatus) next[p.serviceJourneyId] = p.occupancyStatus;
-          else delete next[p.serviceJourneyId];
-        }
-        return next;
-      });
-    },
-    [],
-  );
-
   const handleRouteSelect = useCallback((i: number) => {
     setSelectedRoute(i);
     setExpandedRoute(i);
     setRouteDetailMinimized(false);
   }, []);
 
-  const vehicleLegs = useMemo(() => {
-    if (expandedRoute === null || !routes[expandedRoute]) return undefined;
-    return routes[expandedRoute].legs
-      .filter(l => l.mode !== "foot" && l.serviceJourney?.id)
-      .map(l => ({
-        serviceJourneyId: l.serviceJourney!.id,
-        mode: l.mode,
-        transportSubmode: l.transportSubmode,
-        color: getModeColor(l.mode),
-      }));
-  }, [expandedRoute, routes]);
 
   return (
     <main className="fixed inset-0">
@@ -286,7 +279,7 @@ export default function Home() {
         <button
           onClick={() => { setSearchOpen(true); searchBarRef.current?.focus(); }}
           className={`search-trigger fixed left-1/2 z-[110] w-full max-w-md px-4${searchOpen ? " search-trigger-hidden" : ""}`}
-          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)", transform: "translateX(-50%)" }}
+          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 0.5rem)", transform: "translateX(-50%)" }}
         >
           <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-lg px-4 h-[52px] flex items-center gap-3">
             <Search size={16} className="text-ink-primary/50 shrink-0" />
@@ -334,7 +327,7 @@ export default function Home() {
         <div
           ref={topCardRef}
           className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4"
-          style={{ top: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
+          style={{ top: "calc(env(safe-area-inset-top, 0px) + 0.5rem)" }}
         >
           <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-lg px-3 py-2.5">
             <div className="flex flex-col gap-0 px-2">
@@ -374,8 +367,6 @@ export default function Home() {
         userHeading={userHeading}
         onViewChange={handleViewChange}
         onStopClick={handleDestinationSelect}
-        vehicleLegs={vehicleLegs}
-        onVehicleUpdate={handleVehicleUpdate}
         followPadding={followPadding}
       />
 
@@ -395,7 +386,6 @@ export default function Home() {
           destinationName={destination?.name ?? ""}
           onBack={() => setExpandedRoute(null)}
           onMinimizedChange={setRouteDetailMinimized}
-          occupancy={vehicleOccupancy}
           onBoundsChange={handleBottomBoundsChange}
         />
       )}
@@ -405,7 +395,7 @@ export default function Home() {
         <div
           ref={walkPanelRef}
           className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 animate-in slide-in-from-bottom-4 fade-in duration-300"
-          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)" }}
+          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 0.5rem)" }}
         >
           <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/5 overflow-hidden">
             {/* Header */}

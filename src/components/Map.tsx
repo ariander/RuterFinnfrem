@@ -174,6 +174,8 @@ export function MapView({
   onStopClickRef.current = onStopClick;
   const onVehicleUpdateRef = useRef(onVehicleUpdate);
   onVehicleUpdateRef.current = onVehicleUpdate;
+  const userHeadingRef = useRef<number | null>(null);
+  userHeadingRef.current = userHeading ?? null;
 
   // Fake vehicle markers ref (for /fake page)
   const fakeVehicleMarkersRef = useRef<Map<string, maplibre.Marker>>(new Map());
@@ -588,7 +590,7 @@ export function MapView({
     };
   }, []);
 
-  // Update user location marker + heading
+  // Update user location marker + heading (account for map bearing so cone always points compass-north)
   useEffect(() => {
     if (!map.current || !userLocation) return;
     createUserMarker(userLocation.lng, userLocation.lat);
@@ -596,13 +598,28 @@ export function MapView({
     if (!el) return;
     const inner = el.querySelector(".user-location-inner") as HTMLElement | null;
     if (userHeading != null) {
-      if (inner) inner.style.transform = `rotate(${userHeading}deg)`;
+      const mapBearing = map.current?.getBearing() ?? 0;
+      if (inner) inner.style.transform = `rotate(${userHeading - mapBearing}deg)`;
       el.classList.add("has-heading");
     } else {
       if (inner) inner.style.transform = "";
       el.classList.remove("has-heading");
     }
   }, [userLocation, userHeading, createUserMarker]);
+
+  // Keep heading cone aligned as map rotates
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+    const onRotate = () => {
+      const el = userMarker.current?.getElement();
+      if (!el) return;
+      const inner = el.querySelector(".user-location-inner") as HTMLElement | null;
+      if (!inner || userHeadingRef.current == null) return;
+      inner.style.transform = `rotate(${userHeadingRef.current - (map.current?.getBearing() ?? 0)}deg)`;
+    };
+    map.current.on("rotate", onRotate);
+    return () => { map.current?.off("rotate", onRotate); };
+  }, [mapReady]);
 
   // Update destination marker
   useEffect(() => {

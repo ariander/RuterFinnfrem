@@ -20,7 +20,9 @@ function getActiveLegIndex(trip: TripPattern, now: number): number | null {
   for (let i = 0; i < trip.legs.length; i++) {
     const start = new Date(trip.legs[i].expectedStartTime).getTime();
     const end = new Date(trip.legs[i].expectedEndTime).getTime();
-    if (now >= start && now <= end) return i;
+    // For transit legs add a 5-min buffer so a delayed bus doesn't prematurely flip to walking
+    const buffer = trip.legs[i].mode !== "foot" ? 5 * 60 * 1000 : 0;
+    if (now >= start && now <= end + buffer) return i;
   }
   return null;
 }
@@ -99,7 +101,11 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
     });
   }
 
-  const lastLeg = trip.legs[trip.legs.length - 1];
+  // If the last leg is a short walk (≤100m) the destination is essentially at the stop — skip it
+  const visibleLegs = trip.legs.filter((leg, i) =>
+    !(i === trip.legs.length - 1 && leg.mode === "foot" && leg.distance <= 100)
+  );
+  const lastLeg = visibleLegs[visibleLegs.length - 1];
 
   // Collect all unique situations from legs (prefer Norwegian)
   const allSituations = trip.legs
@@ -133,7 +139,7 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
     <div
       ref={outerRef}
       className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 animate-in slide-in-from-bottom-4 fade-in duration-300"
-      style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)" }}
+      style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 0.5rem)" }}
     >
       <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/5 overflow-hidden">
         {/* Header */}
@@ -145,16 +151,16 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
             <ChevronLeft size={18} className="text-ink-primary/70" />
           </button>
           {minimized ? (
-            <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+            <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
               {focusLeg?.mode === "foot" && (
                 <span className="text-sm text-ink-primary/70 shrink-0">
-                  🚶 {Math.round(focusLeg.duration / 60)} min
+                  🚶 {Math.round(focusLeg.duration / 60)} m
                 </span>
               )}
               {nextTransitLeg && (
                 <>
                   {focusLeg?.mode === "foot" && (
-                    <span className="text-ink-primary/25 shrink-0 text-xs">→</span>
+                    <img src="/ArrowRight.svg" width={14} height={14} className="opacity-30 shrink-0" alt="→" />
                   )}
                   <span
                     className="inline-flex px-1.5 py-0.5 rounded text-xs font-bold text-white shrink-0"
@@ -252,13 +258,16 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
               </div>
             )}
 
-            {trip.legs.map((leg, i) => {
+            {visibleLegs.map((leg, i) => {
               const isWalk = leg.mode === "foot";
               const color = getModeColor(leg.mode);
               const isActive = i === activeLegIndex;
               const past = tripStarted && activeLegIndex !== null
                 ? now > new Date(leg.expectedEndTime).getTime() && !isActive
                 : false;
+              // Show past-departure notice when trip hasn't started and departure is >1 min ago
+              const depTime = new Date(leg.expectedStartTime).getTime();
+              const departurePassed = !tripStarted && now > depTime + 60_000;
               const intermediates = leg.intermediateEstimatedCalls ?? [];
               const isExpanded = expandedLegs.has(i);
               const fromName = i === 0
@@ -386,6 +395,11 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
                             </span>
                           )}
                         </div>
+                        {departurePassed && (
+                          <div className="flex items-center gap-1 mb-1">
+                            <span className="text-[10px] text-amber-600 font-medium">⚠ Avgangen kan ha gått</span>
+                          </div>
+                        )}
                         {occInfo && (
                           <div className="flex items-center gap-1.5 mb-1">
                             <img src={occInfo.icon} width={13} height={13} alt="" className="opacity-70" />
