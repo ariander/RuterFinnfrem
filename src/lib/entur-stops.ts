@@ -31,14 +31,28 @@ export async function getNearbyStops(lat: number, lng: number, distance = 1500):
     }
   }`;
 
-  const res = await fetch("https://api.entur.io/journey-planner/v3/graphql", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "ET-Client-Name": "ruter-reisetid-poc",
-    },
-    body: JSON.stringify({ query }),
-  });
+  const fetchOnce = () =>
+    fetch("https://api.entur.io/journey-planner/v3/graphql", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "ET-Client-Name": "ruter-reisetid-poc",
+      },
+      body: JSON.stringify({ query }),
+      signal: AbortSignal.timeout(8000),
+    });
+
+  let res: Response;
+  try {
+    res = await fetchOnce();
+  } catch {
+    // Retry once on network failure or timeout
+    try {
+      res = await fetchOnce();
+    } catch {
+      return [];
+    }
+  }
 
   if (!res.ok) return [];
 
