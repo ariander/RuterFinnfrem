@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ChevronLeft, ChevronDown } from "lucide-react";
 import type { TripPattern } from "@/lib/entur-trip";
-import { getModeColor, formatTime, formatDuration, getModeName, type Situation } from "@/lib/entur-trip";
+import { getLegColor, formatTime, formatDuration, getModeName, type Situation } from "@/lib/entur-trip";
 
 interface RouteDetailProps {
   trip: TripPattern;
@@ -164,7 +164,7 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
                   )}
                   <span
                     className="inline-flex px-1.5 py-0.5 rounded text-xs font-bold text-white shrink-0"
-                    style={{ backgroundColor: getModeColor(nextTransitLeg.mode) }}
+                    style={{ backgroundColor: getLegColor(nextTransitLeg) }}
                   >
                     {nextTransitLeg.line?.publicCode || getModeName(nextTransitLeg.mode)}
                   </span>
@@ -260,7 +260,7 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
 
             {visibleLegs.map((leg, i) => {
               const isWalk = leg.mode === "foot";
-              const color = getModeColor(leg.mode);
+              const color = getLegColor(leg);
               const isActive = i === activeLegIndex;
               const past = tripStarted && activeLegIndex !== null
                 ? now > new Date(leg.expectedEndTime).getTime() && !isActive

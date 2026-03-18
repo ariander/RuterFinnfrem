@@ -8,12 +8,14 @@ interface LatLng {
 interface UserLocationState {
   userLocation: LatLng | null;
   userHeading: number | null;
+  userSpeed: number | null; // km/h, null if unavailable
   geoError: string | null;
 }
 
 export function useUserLocation(): UserLocationState {
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [userHeading, setUserHeading] = useState<number | null>(null);
+  const [userSpeed, setUserSpeed] = useState<number | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,6 +28,7 @@ export function useUserLocation(): UserLocationState {
       (pos) => {
         setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setUserHeading(typeof pos.coords.heading === "number" && !isNaN(pos.coords.heading) ? pos.coords.heading : null);
+        setUserSpeed(typeof pos.coords.speed === "number" && pos.coords.speed >= 0 ? pos.coords.speed * 3.6 : null);
         setGeoError(null);
       },
       (err) => {
@@ -40,6 +43,6 @@ export function useUserLocation(): UserLocationState {
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
 
-  return { userLocation, userHeading, geoError };
+  return { userLocation, userHeading, userSpeed, geoError };
 }
 

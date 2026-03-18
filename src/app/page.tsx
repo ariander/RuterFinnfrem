@@ -6,14 +6,14 @@ import { MapView } from "@/components/Map";
 import { SearchBar, type SearchBarRef } from "@/components/SearchBar";
 import { RoutePanel } from "@/components/RoutePanel";
 import { RouteDetail } from "@/components/RouteDetail";
-import { searchTrip, searchWalkRoute, formatDuration, type TripPattern } from "@/lib/entur-trip";
+import { searchTrip, searchWalkRoute, formatDuration, formatTime, getLegColor, type TripPattern, type Leg } from "@/lib/entur-trip";
 import type { Stop } from "@/lib/entur-stops";
 import { useUserLocation } from "@/hooks/useUserLocation";
 import { useNearbyStops } from "@/hooks/useNearbyStops";
-import { isOffRoute } from "@/lib/offroute";
+import { isOffRoute, detectBoardedTransitLeg } from "@/lib/offroute";
 
 export default function Home() {
-  const { userLocation, userHeading, geoError } = useUserLocation();
+  const { userLocation, userHeading, userSpeed, geoError } = useUserLocation();
   const [destination, setDestination] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [routes, setRoutes] = useState<TripPattern[]>([]);
   const [selectedRoute, setSelectedRoute] = useState(0);
@@ -23,7 +23,14 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [walkOnly, setWalkOnly] = useState(false);
   const [walkRoute, setWalkRoute] = useState<TripPattern | null>(null);
+  const [excludeRail, setExcludeRail] = useState(false);
+  const excludeRailRef = useRef(excludeRail);
+  excludeRailRef.current = excludeRail;
   const { stops, handleViewChange } = useNearbyStops(userLocation);
+
+  // Boarding detection popup
+  const [boardingPrompt, setBoardingPrompt] = useState<{ legIndex: number; leg: Leg } | null>(null);
+  const suppressedJourneysRef = useRef(new Set<string>());
 
   // Loading overlay state
   const [loadingVisible, setLoadingVisible] = useState(false);
@@ -45,6 +52,20 @@ export default function Home() {
       }, 300);
     }
   }, [loading]);
+
+  // Boarding detection: show popup when user appears to be on a transit vehicle
+  useEffect(() => {
+    if (expandedRoute === null || !userLocation || !userSpeed || userSpeed < 10) return;
+    if (boardingPrompt) return; // already showing one
+    const route = routes[expandedRoute];
+    if (!route) return;
+    const legIdx = detectBoardedTransitLeg(userLocation, userSpeed, route);
+    if (legIdx === null) return;
+    const leg = route.legs[legIdx];
+    const journeyId = leg.serviceJourney?.id;
+    if (journeyId && suppressedJourneysRef.current.has(journeyId)) return;
+    setBoardingPrompt({ legIndex: legIdx, leg });
+  }, [userLocation, userSpeed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Search for trips when destination changes OR when user has moved significantly off-route
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -68,7 +89,7 @@ export default function Home() {
       expandedRouteRef.current !== null
         ? (routesRef.current[expandedRouteRef.current] ?? routesRef.current[0])
         : null;
-    const offRoute = activeRoute != null && isOffRoute(userLocation, activeRoute);
+    const offRoute = activeRoute != null && isOffRoute(userLocation, activeRoute, userSpeed);
 
     if (!destChanged && !offRoute) return;
 
@@ -78,7 +99,7 @@ export default function Home() {
     searchRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const trips = await searchTrip(userLocation, destination, 5);
+        const trips = await searchTrip(userLocation, destination, 5, excludeRailRef.current);
         setRoutes(trips);
         if (expandedRouteRef.current === null) {
           setSelectedRoute(0);
@@ -113,7 +134,7 @@ export default function Home() {
     const anchorStartTime = routes[expandedRoute]?.startTime ?? null;
     const id = setInterval(async () => {
       try {
-        const trips = await searchTrip(userLocation, destination, 5);
+        const trips = await searchTrip(userLocation, destination, 5, excludeRailRef.current);
         setRoutes(trips);
         // Try to keep the user on the same trip after a refresh
         if (anchorStartTime) {
@@ -146,8 +167,27 @@ export default function Home() {
     setWalkOnly(false);
     setWalkRoute(null);
     setSearchOpen(false);
+    setBoardingPrompt(null);
     lastSearchedDestRef.current = null;
   }, []);
+
+  const handleToggleExcludeRail = useCallback(async () => {
+    const next = !excludeRail;
+    setExcludeRail(next);
+    if (!userLocation || !destination) return;
+    setLoading(true);
+    try {
+      const trips = await searchTrip(userLocation, destination, 5, next);
+      setRoutes(trips);
+      setSelectedRoute(0);
+      setExpandedRoute(null);
+      setWalkOnly(trips.length === 0);
+    } catch (err) {
+      console.error("Trip search error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [excludeRail, userLocation, destination]);
 
   const [routeDetailMinimized, setRouteDetailMinimized] = useState(false);
 
@@ -302,6 +342,8 @@ export default function Home() {
           onSelect={handleRouteSelect}
           walkRoute={walkRoute ?? undefined}
           onBoundsChange={handleBottomBoundsChange}
+          excludeRail={excludeRail}
+          onToggleExcludeRail={handleToggleExcludeRail}
         />
       )}
       {routes.length > 0 && expandedRoute !== null && (
@@ -395,6 +437,58 @@ export default function Home() {
                 </>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* Boarding confirmation popup */}
+      {boardingPrompt && (
+        <div
+          className="fixed left-1/2 -translate-x-1/2 z-[120] w-full max-w-md px-4 animate-in slide-in-from-bottom-2 fade-in duration-200"
+          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 96px)" }}
+        >
+          <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/8 px-4 py-3">
+            <p className="text-sm text-ink-primary/70 mb-1">Er du på bussen?</p>
+            <div className="flex items-center gap-2 mb-3">
+              <span
+                className="inline-flex px-2 py-0.5 rounded text-xs font-bold text-white shrink-0"
+                style={{ backgroundColor: getLegColor(boardingPrompt.leg) }}
+              >
+                {boardingPrompt.leg.line?.publicCode}
+              </span>
+              {boardingPrompt.leg.fromEstimatedCall?.destinationDisplay?.frontText && (
+                <span className="text-sm font-medium text-ink-primary truncate">
+                  {boardingPrompt.leg.fromEstimatedCall.destinationDisplay.frontText}
+                </span>
+              )}
+              <span className="text-sm text-ink-primary/50 shrink-0 ml-auto">
+                avg. {formatTime(boardingPrompt.leg.expectedStartTime)}
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  const journeyId = boardingPrompt.leg.serviceJourney?.id;
+                  if (journeyId) suppressedJourneysRef.current.add(journeyId);
+                  setBoardingPrompt(null);
+                }}
+                className="flex-1 py-2 rounded-xl bg-ink-primary text-white text-sm font-medium"
+              >
+                Ja
+              </button>
+              <button
+                onClick={() => {
+                  const journeyId = boardingPrompt.leg.serviceJourney?.id;
+                  if (journeyId) suppressedJourneysRef.current.add(journeyId);
+                  setBoardingPrompt(null);
+                  // Force recalculation by resetting last searched dest
+                  lastSearchedDestRef.current = null;
+                }}
+                className="flex-1 py-2 rounded-xl bg-ink-primary/8 text-ink-primary/60 text-sm font-medium"
+              >
+                Nei
+              </button>
+            </div>
           </div>
         </div>
       )}

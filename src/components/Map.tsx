@@ -5,7 +5,7 @@ import maplibre from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Stop } from "@/lib/entur-stops";
 import type { TripPattern } from "@/lib/entur-trip";
-import { getModeColor } from "@/lib/entur-trip";
+import { getLegColor } from "@/lib/entur-trip";
 import { decodePolyline } from "@/lib/polyline";
 
 interface MapViewProps {
@@ -52,7 +52,7 @@ function routeToGeoJSON(
       geometry: { type: "LineString", coordinates: coords },
       properties: {
         mode: leg.mode,
-        color: getModeColor(leg.mode),
+        color: getLegColor(leg),
         isWalk: leg.mode === "foot",
         lineCode: leg.line?.publicCode ?? "",
         opacity: opts.opacity,
@@ -687,14 +687,14 @@ export function MapView({
         transfers.push({
           type: "Feature",
           geometry: { type: "Point", coordinates: startCoords },
-          properties: { color: getModeColor(leg.mode) },
+          properties: { color: getLegColor(leg) },
         });
       }
       if (endCoords) {
         transfers.push({
           type: "Feature",
           geometry: { type: "Point", coordinates: endCoords },
-          properties: { color: getModeColor(leg.mode) },
+          properties: { color: getLegColor(leg) },
         });
       }
     }

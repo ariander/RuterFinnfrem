@@ -47,6 +47,7 @@ export interface LineInfo {
   publicCode: string;
   name: string;
   transportMode: string;
+  authority?: { id: string };
 }
 
 export interface EstimatedCall {
@@ -67,8 +68,36 @@ export const MODE_COLORS: Record<string, string> = {
   coach: "#75A300",
 };
 
-export function getModeColor(mode: string): string {
+const REGIONAL_BUS_SUBMODES = new Set([
+  "regionalBus",
+  "expressBus",
+  "nightBus",
+  "airportLinkBus",
+]);
+
+export function getModeColor(mode: string, submode?: string): string {
+  if (mode === "bus" && submode && REGIONAL_BUS_SUBMODES.has(submode)) {
+    return "#75A300";
+  }
   return MODE_COLORS[mode] ?? MODE_COLORS.bus;
+}
+
+/**
+ * Returns the correct color for a trip leg.
+ * Handles Ruter's regional buses (400+) which Entur tags as localBus
+ * even though they should use the green regional color.
+ */
+export function getLegColor(leg: { mode: string; transportSubmode?: string; line?: LineInfo }): string {
+  const base = getModeColor(leg.mode, leg.transportSubmode);
+  if (
+    leg.mode === "bus" &&
+    leg.transportSubmode === "localBus" &&
+    leg.line?.authority?.id === "RUT:Authority:RUT"
+  ) {
+    const num = parseInt(leg.line.publicCode.match(/^(\d+)/)?.[1] ?? "0", 10);
+    if (num >= 100) return "#75A300";
+  }
+  return base;
 }
 
 export function formatTime(isoString: string): string {
@@ -103,7 +132,17 @@ export async function searchTrip(
   from: { lat: number; lng: number },
   to: { lat: number; lng: number },
   numPatterns = 5,
+  excludeRail = false,
 ): Promise<TripPattern[]> {
+  const transportModes = [
+    "{ transportMode: bus }",
+    "{ transportMode: tram }",
+    "{ transportMode: metro }",
+    excludeRail ? null : "{ transportMode: rail }",
+    "{ transportMode: water }",
+    "{ transportMode: coach }",
+  ].filter(Boolean).join("\n          ");
+
   const query = `{
     trip(
       from: { coordinates: { latitude: ${from.lat}, longitude: ${from.lng} } }
@@ -113,12 +152,7 @@ export async function searchTrip(
         accessMode: foot
         egressMode: foot
         transportModes: [
-          { transportMode: bus },
-          { transportMode: tram },
-          { transportMode: metro },
-          { transportMode: rail },
-          { transportMode: water },
-          { transportMode: coach }
+          ${transportModes}
         ]
       }
     ) {
@@ -129,7 +163,7 @@ export async function searchTrip(
           aimedStartTime expectedStartTime aimedEndTime expectedEndTime
           fromPlace { name latitude longitude quay { id name publicCode } }
           toPlace { name latitude longitude quay { id name publicCode } }
-          line { publicCode name transportMode }
+          line { publicCode name transportMode authority { id } }
           fromEstimatedCall { destinationDisplay { frontText } }
           intermediateEstimatedCalls {
             quay { name id }
