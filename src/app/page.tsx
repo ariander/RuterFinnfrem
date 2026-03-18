@@ -107,6 +107,8 @@ export default function Home() {
         setWalkOnly(trips.length === 0);
       } catch (err) {
         console.error("Trip search error:", err);
+        // On failure, fall through to walk-only so user sees something
+        setWalkOnly(true);
       } finally {
         setLoading(false);
       }
@@ -154,6 +156,11 @@ export default function Home() {
   const handleDestinationSelect = useCallback(
     (loc: { lat: number; lng: number; name: string }) => {
       setDestination(loc);
+      setRoutes([]);
+      setWalkOnly(false);
+      setWalkRoute(null);
+      setExpandedRoute(null);
+      lastSearchedDestRef.current = null;
       setSearchOpen(false);
     },
     [],
@@ -340,7 +347,7 @@ export default function Home() {
           routes={routes}
           selectedIndex={selectedRoute}
           onSelect={handleRouteSelect}
-          walkRoute={walkRoute ?? undefined}
+          walkRoute={!loading ? (walkRoute ?? undefined) : undefined}
           onBoundsChange={handleBottomBoundsChange}
           excludeRail={excludeRail}
           onToggleExcludeRail={handleToggleExcludeRail}
@@ -356,8 +363,8 @@ export default function Home() {
         />
       )}
 
-      {/* Walk-only: no transit routes — show walk + bike panel */}
-      {walkOnly && routes.length === 0 && destination && userLocation && (
+      {/* Walk-only: no transit routes — show walk + bike panel (only after transit search is done) */}
+      {walkOnly && !loading && routes.length === 0 && destination && userLocation && (
         <div
           ref={walkPanelRef}
           className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 animate-in slide-in-from-bottom-4 fade-in duration-300"
