@@ -14,6 +14,18 @@ interface RouteDetailProps {
   occupancy?: Record<string, string>;
   /** Called with (window.innerHeight - panelTop) so the map can centre between cards */
   onBoundsChange?: (distFromViewportBottom: number) => void;
+  /** User's current GPS position — used for proximity-based boarding hints */
+  userLocation?: { lat: number; lng: number };
+}
+
+function haversineM(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371000;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const x =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
 
 function getActiveLegIndex(trip: TripPattern, now: number): number | null {
@@ -51,7 +63,7 @@ function occupancyInfo(status: string): { icon: string; label: string } | null {
   return null;
 }
 
-export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, occupancy, onBoundsChange }: RouteDetailProps) {
+export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, occupancy, onBoundsChange, userLocation }: RouteDetailProps) {
   const [expandedLegs, setExpandedLegs] = useState<Set<number>>(new Set());
   const [minimized, setMinimized] = useState(false);
   const outerRef = useRef<HTMLDivElement>(null);
@@ -279,6 +291,19 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
               const shortDistance = leg.distance <= 75; // terskel for å kalle det overgang
               const isTransfer = isWalk && sameStop && shortDistance;
 
+              // Brukeren er nær neste transportmiddel → vis "gå på buss X" i stedet for gangtid
+              const nextLeg = trip.legs[i + 1];
+              const isNearTransit =
+                isWalk &&
+                !isTransfer &&
+                nextLeg &&
+                nextLeg.mode !== "foot" &&
+                userLocation != null &&
+                haversineM(userLocation, {
+                  lat: nextLeg.fromPlace.latitude,
+                  lng: nextLeg.fromPlace.longitude,
+                }) < 50;
+
               // Delay for departure
               const depDelay = delayMinutes(leg.aimedStartTime, leg.expectedStartTime);
 
@@ -357,7 +382,21 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
                     {/* Walk / overgang */}
                     {isWalk && (
                       <div className="flex items-center gap-3 mb-1">
-                        {isTransfer ? (
+                        {isNearTransit ? (
+                          <div className="text-xs font-medium flex items-center gap-1.5">
+                            <span
+                              className="inline-flex px-2 py-0.5 rounded text-xs font-bold text-white shrink-0"
+                              style={{ backgroundColor: getLegColor(nextLeg) }}
+                            >
+                              {nextLeg.line?.publicCode || getModeName(nextLeg.mode)}
+                            </span>
+                            <span className="text-ink-primary/70">
+                              {nextLeg.fromEstimatedCall?.destinationDisplay?.frontText
+                                ? `mot ${nextLeg.fromEstimatedCall.destinationDisplay.frontText}`
+                                : "gå på nå"}
+                            </span>
+                          </div>
+                        ) : isTransfer ? (
                           <>
                             <div className="text-xs text-ink-primary/60 flex items-center gap-1.5">
                               <img src="/Platform.svg" width={14} height={14} alt="" className="opacity-70" />
