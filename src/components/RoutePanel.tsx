@@ -2,7 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import type { TripPattern, Leg } from "@/lib/entur-trip";
-import { getModeColor, formatTime, formatDuration, getModeName } from "@/lib/entur-trip";
+import { getLegColor, formatTime, formatDuration, getModeName } from "@/lib/entur-trip";
 
 const WALK_MAX_SECS = 900;  // 15 min
 const BIKE_SPEED_MS = 15000 / 3600; // 15 km/h in m/s
@@ -13,6 +13,8 @@ interface RoutePanelProps {
   onSelect: (index: number) => void;
   walkRoute?: TripPattern;
   onBoundsChange?: (distFromViewportBottom: number) => void;
+  excludeRail?: boolean;
+  onToggleExcludeRail?: () => void;
 }
 
 function LegBar({ legs }: { legs: Leg[] }) {
@@ -23,7 +25,7 @@ function LegBar({ legs }: { legs: Leg[] }) {
     <div className="flex items-center gap-0.5 h-3 w-full rounded overflow-hidden">
       {legs.map((leg, i) => {
         const pct = Math.max((leg.duration / totalDuration) * 100, 4);
-        const color = getModeColor(leg.mode);
+        const color = getLegColor(leg);
         const isWalk = leg.mode === "foot";
 
         return (
@@ -66,7 +68,7 @@ function LegSummary({ legs }: { legs: Leg[] }) {
           {i > 0 && <span className="text-ink-primary/30 text-sm">›</span>}
           <span
             className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold text-white"
-            style={{ backgroundColor: getModeColor(leg.mode) }}
+            style={{ backgroundColor: getLegColor(leg) }}
           >
             {leg.line?.publicCode || getModeName(leg.mode)}
           </span>
@@ -90,7 +92,7 @@ function RealtimeBadge() {
   );
 }
 
-export function RoutePanel({ routes, selectedIndex, onSelect, walkRoute, onBoundsChange }: RoutePanelProps) {
+export function RoutePanel({ routes, selectedIndex, onSelect, walkRoute, onBoundsChange, excludeRail, onToggleExcludeRail }: RoutePanelProps) {
   const outerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -106,6 +108,7 @@ export function RoutePanel({ routes, selectedIndex, onSelect, walkRoute, onBound
   if (routes.length === 0) return null;
 
   const hasRealtime = (trip: TripPattern) => trip.legs.some((l) => l.realtime);
+  const hasRail = routes.some((t) => t.legs.some((l) => l.mode === "rail"));
 
   // Walk/bike alternatives — only show if ≤ 15 min
   const walkLeg = walkRoute?.legs?.[0];
@@ -125,7 +128,22 @@ export function RoutePanel({ routes, selectedIndex, onSelect, walkRoute, onBound
         <div className="px-4 pt-3 pb-2">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold text-ink-primary">Reiseruter</h2>
-            <span className="text-xs text-ink-primary/40">{routes.length} alternativer</span>
+            <div className="flex items-center gap-2">
+              {(hasRail || excludeRail) && onToggleExcludeRail && (
+                <button
+                  onClick={onToggleExcludeRail}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors border ${
+                    excludeRail
+                      ? "bg-ink-primary/8 border-ink-primary/20 text-ink-primary/50 line-through"
+                      : "bg-[#003087]/8 border-[#003087]/20 text-[#003087]"
+                  }`}
+                >
+                  <img src="/icons/train.svg" width={12} height={12} alt="" style={{ opacity: excludeRail ? 0.4 : 0.8 }} />
+                  Tog
+                </button>
+              )}
+              <span className="text-xs text-ink-primary/40">{routes.length} alternativer</span>
+            </div>
           </div>
         </div>
 
