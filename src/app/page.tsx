@@ -282,7 +282,7 @@ export default function Home() {
         >
           <div
             className="bg-white/85 backdrop-blur-xl rounded-t-2xl shadow-lg px-4 flex items-center gap-3"
-            style={{ minHeight: "52px", paddingBottom: "40px" }}
+            style={{ height: "92px", alignItems: "flex-start", paddingTop: "14px" }}
           >
             <Search size={16} className="text-ink-primary/50 shrink-0" />
             <span className="text-sm text-ink-primary/40">Hvor vil du reise?</span>

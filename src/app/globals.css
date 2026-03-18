@@ -133,12 +133,16 @@
     @apply text-foreground;
     /* Warm beige matching Voyager map — hides the flash before map renders */
     background-color: #ede7df;
-    /* Prevent rubber-banding overscroll revealing browser background */
-    overscroll-behavior-y: none;
+    /* Prevent rubber-banding and scrolling — all UI is fixed-position */
+    overscroll-behavior: none;
+    overflow: hidden;
+    height: 100%;
   }
   html {
     @apply font-sans;
     background-color: #ede7df;
+    overflow: hidden;
+    height: 100%;
   }
 }
 
