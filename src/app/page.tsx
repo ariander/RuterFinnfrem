@@ -278,11 +278,11 @@ export default function Home() {
         <button
           onClick={() => { setSearchOpen(true); searchBarRef.current?.focus(); }}
           className={`search-trigger fixed left-1/2 z-[110] w-full max-w-md px-4${searchOpen ? " search-trigger-hidden" : ""}`}
-          style={{ bottom: 0, transform: "translateX(-50%)" }}
+          style={{ bottom: "-40px", transform: "translateX(-50%)" }}
         >
           <div
             className="bg-white/85 backdrop-blur-xl rounded-t-2xl shadow-lg px-4 flex items-center gap-3"
-            style={{ minHeight: "52px", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+            style={{ minHeight: "52px", paddingBottom: "40px" }}
           >
             <Search size={16} className="text-ink-primary/50 shrink-0" />
             <span className="text-sm text-ink-primary/40">Hvor vil du reise?</span>
@@ -400,7 +400,7 @@ export default function Home() {
         <div
           ref={walkPanelRef}
           className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 animate-in slide-in-from-bottom-4 fade-in duration-300"
-          style={{ bottom: 0 }}
+          style={{ bottom: "-40px" }}
         >
           <div className="bg-white/90 backdrop-blur-xl rounded-t-2xl shadow-xl border border-ink-primary/5 overflow-hidden">
             {/* Header */}
@@ -476,8 +476,8 @@ export default function Home() {
                 </>
               );
             })()}
-          {/* Safe-area spacer — extends card flush to screen edge on iPhone */}
-          <div style={{ height: "env(safe-area-inset-bottom, 0px)" }} />
+          {/* Safe-area spacer — keeps content above home indicator */}
+          <div style={{ height: "40px" }} />
           </div>
         </div>
       )}
