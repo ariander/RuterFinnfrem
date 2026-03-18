@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ChevronLeft, ChevronDown } from "lucide-react";
 import type { TripPattern } from "@/lib/entur-trip";
-import { getLegColor, formatTime, formatDuration, getModeName, type Situation } from "@/lib/entur-trip";
+import { getLegColor, formatTime, formatDuration, getModeName } from "@/lib/entur-trip";
 
 interface RouteDetailProps {
   trip: TripPattern;
@@ -151,9 +151,9 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
     <div
       ref={outerRef}
       className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 animate-in slide-in-from-bottom-4 fade-in duration-300"
-      style={{ bottom: "env(safe-area-inset-bottom, 0px)" }}
+      style={{ bottom: 0 }}
     >
-      <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/5 overflow-hidden">
+      <div className="bg-white/90 backdrop-blur-xl rounded-t-2xl shadow-xl border border-ink-primary/5 overflow-hidden">
         {/* Header */}
         <div className="px-3 pt-3 pb-2.5 flex items-center gap-2 border-b border-ink-primary/5">
           <button
@@ -382,7 +382,7 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
                     {/* Walk / overgang */}
                     {isWalk && (
                       <div className="flex items-center gap-3 mb-1">
-                        {isNearTransit ? (
+                        {isNearTransit && nextLeg ? (
                           <div className="text-xs font-medium flex items-center gap-1.5">
                             <span
                               className="inline-flex px-2 py-0.5 rounded text-xs font-bold text-white shrink-0"
@@ -552,6 +552,8 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
 
           </div>
         </div>
+        {/* Safe-area spacer — extends card flush to screen edge on iPhone */}
+        <div style={{ height: "env(safe-area-inset-bottom, 0px)" }} />
       </div>
     </div>
   );
