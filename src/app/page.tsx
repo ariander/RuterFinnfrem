@@ -32,6 +32,11 @@ export default function Home() {
   const [boardingPrompt, setBoardingPrompt] = useState<{ legIndex: number; leg: Leg } | null>(null);
   const suppressedJourneysRef = useRef(new Set<string>());
 
+  // Confirmed boarding — suppresses off-route recalc while user is on a vehicle
+  const [boardedJourneyId, setBoardedJourneyId] = useState<string | null>(null);
+  const boardedJourneyIdRef = useRef<string | null>(null);
+  boardedJourneyIdRef.current = boardedJourneyId;
+
   // Loading overlay state
   const [loadingVisible, setLoadingVisible] = useState(false);
   const [loadingLeaving, setLoadingLeaving] = useState(false);
@@ -55,11 +60,12 @@ export default function Home() {
 
   // Boarding detection: show popup when user appears to be on a transit vehicle
   useEffect(() => {
-    if (expandedRoute === null || !userLocation || !userSpeed || userSpeed < 10) return;
+    if (expandedRoute === null || !userLocation) return;
     if (boardingPrompt) return; // already showing one
     const route = routes[expandedRoute];
     if (!route) return;
-    const legIdx = detectBoardedTransitLeg(userLocation, userSpeed, route);
+    // Pass userSpeed as-is — detectBoardedTransitLeg handles null (speed unavailable on iOS)
+    const legIdx = detectBoardedTransitLeg(userLocation, userSpeed ?? null, route);
     if (legIdx === null) return;
     const leg = route.legs[legIdx];
     const journeyId = leg.serviceJourney?.id;
@@ -89,7 +95,23 @@ export default function Home() {
       expandedRouteRef.current !== null
         ? (routesRef.current[expandedRouteRef.current] ?? routesRef.current[0])
         : null;
-    const offRoute = activeRoute != null && isOffRoute(userLocation, activeRoute, userSpeed);
+
+    // Skip off-route check when user has confirmed boarding — prevents recalc while riding
+    const now = Date.now();
+    const onBoardedJourney =
+      boardedJourneyIdRef.current != null &&
+      activeRoute?.legs.some(leg => {
+        if (leg.mode === "foot") return false;
+        const start = new Date(leg.expectedStartTime).getTime();
+        const end = new Date(leg.expectedEndTime).getTime();
+        return (
+          leg.serviceJourney?.id === boardedJourneyIdRef.current &&
+          start <= now + 4 * 60_000 &&
+          end >= now - 2 * 60_000
+        );
+      });
+
+    const offRoute = !onBoardedJourney && activeRoute != null && isOffRoute(userLocation, activeRoute, userSpeed);
 
     if (!destChanged && !offRoute) return;
 
@@ -107,7 +129,8 @@ export default function Home() {
         setWalkOnly(trips.length === 0);
       } catch (err) {
         console.error("Trip search error:", err);
-        // On failure, fall through to walk-only so user sees something
+        // Reset so GPS-update triggers a retry next time
+        lastSearchedDestRef.current = null;
         setWalkOnly(true);
       } finally {
         setLoading(false);
@@ -135,6 +158,9 @@ export default function Home() {
     if (expandedRoute === null || !userLocation || !destination) return;
     const anchorStartTime = routes[expandedRoute]?.startTime ?? null;
     const id = setInterval(async () => {
+      // Don't refresh while boarded — searching from current GPS would find the next departure,
+      // causing the in-progress trip to disappear from the list
+      if (boardedJourneyIdRef.current) return;
       try {
         const trips = await searchTrip(userLocation, destination, 5, excludeRailRef.current);
         setRoutes(trips);
@@ -175,6 +201,7 @@ export default function Home() {
     setWalkRoute(null);
     setSearchOpen(false);
     setBoardingPrompt(null);
+    setBoardedJourneyId(null);
     lastSearchedDestRef.current = null;
   }, []);
 
@@ -240,6 +267,7 @@ export default function Home() {
     setSelectedRoute(i);
     setExpandedRoute(i);
     setRouteDetailMinimized(false);
+    setBoardedJourneyId(null); // clear boarding state when switching routes
   }, []);
 
 
@@ -250,9 +278,12 @@ export default function Home() {
         <button
           onClick={() => { setSearchOpen(true); searchBarRef.current?.focus(); }}
           className={`search-trigger fixed left-1/2 z-[110] w-full max-w-md px-4${searchOpen ? " search-trigger-hidden" : ""}`}
-          style={{ bottom: "env(safe-area-inset-bottom, 0px)", transform: "translateX(-50%)" }}
+          style={{ bottom: 0, transform: "translateX(-50%)" }}
         >
-          <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-lg px-4 h-[52px] flex items-center gap-3">
+          <div
+            className="bg-white/85 backdrop-blur-xl rounded-t-2xl shadow-lg px-4 flex items-center gap-3"
+            style={{ minHeight: "52px", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+          >
             <Search size={16} className="text-ink-primary/50 shrink-0" />
             <span className="text-sm text-ink-primary/40">Hvor vil du reise?</span>
             <div
@@ -357,9 +388,10 @@ export default function Home() {
         <RouteDetail
           trip={routes[expandedRoute] ?? routes[0]}
           destinationName={destination?.name ?? ""}
-          onBack={() => setExpandedRoute(null)}
+          onBack={() => { setExpandedRoute(null); setBoardedJourneyId(null); }}
           onMinimizedChange={setRouteDetailMinimized}
           onBoundsChange={handleBottomBoundsChange}
+          userLocation={userLocation ?? undefined}
         />
       )}
 
@@ -368,9 +400,9 @@ export default function Home() {
         <div
           ref={walkPanelRef}
           className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 animate-in slide-in-from-bottom-4 fade-in duration-300"
-          style={{ bottom: "env(safe-area-inset-bottom, 0px)" }}
+          style={{ bottom: 0 }}
         >
-          <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/5 overflow-hidden">
+          <div className="bg-white/90 backdrop-blur-xl rounded-t-2xl shadow-xl border border-ink-primary/5 overflow-hidden">
             {/* Header */}
             <div className="px-4 pt-3 pb-2 border-b border-ink-primary/5">
               <div className="flex items-center justify-between">
@@ -444,6 +476,8 @@ export default function Home() {
                 </>
               );
             })()}
+          {/* Safe-area spacer — extends card flush to screen edge on iPhone */}
+          <div style={{ height: "env(safe-area-inset-bottom, 0px)" }} />
           </div>
         </div>
       )}
@@ -476,7 +510,10 @@ export default function Home() {
               <button
                 onClick={() => {
                   const journeyId = boardingPrompt.leg.serviceJourney?.id;
-                  if (journeyId) suppressedJourneysRef.current.add(journeyId);
+                  if (journeyId) {
+                    suppressedJourneysRef.current.add(journeyId);
+                    setBoardedJourneyId(journeyId); // freeze off-route checks
+                  }
                   setBoardingPrompt(null);
                 }}
                 className="flex-1 py-2 rounded-xl bg-ink-primary text-white text-sm font-medium"

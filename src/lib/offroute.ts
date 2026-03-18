@@ -36,11 +36,10 @@ function minDistToPolyline(p: LatLng, pts: [number, number][]): number {
 /**
  * Returns true if user is off any active leg's polyline.
  *
- * Speed-aware: if userSpeedKmh > 10 (moving at transit speed):
- *   - Walk legs that are about to end or have just ended are skipped
- *     (user has boarded, small drift from walk path is expected)
- *   - Transit leg boarding grace is extended from 1 min to 3 min
- *     (handles "last-minute" boarding where bus just departed)
+ * Speed-aware: if userSpeedKmh > 5 (transit speed):
+ *   - Walk legs preceding an active transit leg are skipped entirely
+ *   - Boarding grace for transit legs is extended from 2 min to 4 min
+ *   - Walk legs about to end get a 90-second skip window
  */
 export function isOffRoute(
   userLoc: LatLng,
@@ -48,7 +47,17 @@ export function isOffRoute(
   userSpeedKmh?: number | null,
 ): boolean {
   const now = Date.now();
-  const movingFast = userSpeedKmh != null && userSpeedKmh > 10;
+  const movingFast = userSpeedKmh != null && userSpeedKmh > 5;
+
+  // If any transit leg is currently active (started + not ended), ignore ALL walk legs.
+  // Prevents spurious off-route triggers while riding past stops the route walked past earlier.
+  const hasActiveTravelLeg = route.legs.some(leg => {
+    if (leg.mode === "foot") return false;
+    const start = new Date(leg.expectedStartTime).getTime();
+    const end = new Date(leg.expectedEndTime).getTime();
+    const grace = movingFast ? 4 * 60_000 : 2 * 60_000;
+    return start <= now + grace && end >= now - 2 * 60_000;
+  });
 
   for (const leg of route.legs) {
     const legStartMs = new Date(leg.expectedStartTime).getTime();
@@ -59,17 +68,17 @@ export function isOffRoute(
     if (pts.length < 2) continue;
 
     if (leg.mode === "foot") {
-      if (legEndMs < now - 90_000) continue; // completed >90s ago
-      // Moving at transit speed near end of walk leg → user has boarded, skip check
-      if (movingFast && legEndMs < now + 60_000) continue;
+      if (legEndMs < now - 180_000) continue; // completed >3 min ago (was 90 s)
+      if (hasActiveTravelLeg) continue;        // on transit – walk legs are irrelevant
+      // Moving at transit speed near end of walk leg → user has boarded, skip
+      if (movingFast && legEndMs < now + 90_000) continue;
       if (minDistToPolyline(userLoc, pts) > 80) return true;
     } else {
-      // Boarding grace: 3 min when moving fast (last-minute boarding),
-      // 1 min otherwise (standard delay tolerance)
-      const boardingGrace = movingFast ? 3 * 60_000 : 60_000;
+      // Boarding grace: 4 min when fast, 2 min otherwise
+      const boardingGrace = movingFast ? 4 * 60_000 : 2 * 60_000;
       if (legStartMs > now - boardingGrace) continue; // not boarded yet
       if (legEndMs < now - 60_000) continue;          // already alighted
-      if (minDistToPolyline(userLoc, pts) > 300) return true;
+      if (minDistToPolyline(userLoc, pts) > 500) return true; // was 300 m
     }
   }
   return false;
@@ -79,15 +88,18 @@ export function isOffRoute(
  * Returns the index of a transit leg the user appears to have boarded,
  * based on speed + proximity to the route polyline.
  *
- * Used to trigger a "Er du på X?" confirmation popup.
- * Returns null if no boarding is detected.
+ * Accepts null speed — if speed is unavailable (common on iOS) boarding is
+ * still detected, but requires closer proximity (75 m vs 200 m) as a guard.
  */
 export function detectBoardedTransitLeg(
   userLoc: LatLng,
-  userSpeedKmh: number,
+  userSpeedKmh: number | null,
   route: TripPattern,
 ): number | null {
-  if (userSpeedKmh < 10) return null;
+  const speedOk = userSpeedKmh != null && userSpeedKmh >= 5;
+  const speedUnknown = userSpeedKmh == null;
+  // Speed is known and too low (clearly walking/stationary) — skip
+  if (!speedOk && !speedUnknown) return null;
 
   const now = Date.now();
   for (let i = 0; i < route.legs.length; i++) {
@@ -98,15 +110,17 @@ export function detectBoardedTransitLeg(
     const legStartMs = new Date(leg.expectedStartTime).getTime();
     const legEndMs = new Date(leg.expectedEndTime).getTime();
 
-    // Leg departed 0–4 min ago, or departs within the next minute
-    if (legStartMs > now + 60_000) continue;       // >1 min in future
-    if (legStartMs < now - 8 * 60_000) continue;   // departed >8 min ago (covers up to ~5 min delay + stale cache)
-    if (legEndMs < now) continue;                   // already completed
+    // Window: departed up to 12 min ago (was 8 min) or departs within 2 min
+    if (legStartMs > now + 2 * 60_000) continue;
+    if (legStartMs < now - 12 * 60_000) continue;
+    if (legEndMs < now) continue;
 
     const pts = decodePolyline(leg.pointsOnLink.points);
     if (pts.length < 2) continue;
 
-    if (minDistToPolyline(userLoc, pts) <= 200) return i;
+    // Tighter threshold when speed is unknown — avoids false positives at rest
+    const threshold = speedOk ? 200 : 75;
+    if (minDistToPolyline(userLoc, pts) <= threshold) return i;
   }
   return null;
 }
