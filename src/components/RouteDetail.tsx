@@ -276,7 +276,7 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
 
               // Kort gå-ben på samme holdeplass → behandles som overgang
               const sameStop = leg.fromPlace.name === leg.toPlace.name;
-              const shortDistance = leg.distance <= 50; // terskel for å kalle det overgang
+              const shortDistance = leg.distance <= 75; // terskel for å kalle det overgang
               const isTransfer = isWalk && sameStop && shortDistance;
 
               // Delay for departure
