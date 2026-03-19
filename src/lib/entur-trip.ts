@@ -148,6 +148,7 @@ export async function searchTrip(
       from: { coordinates: { latitude: ${from.lat}, longitude: ${from.lng} } }
       to: { coordinates: { latitude: ${to.lat}, longitude: ${to.lng} } }
       numTripPatterns: ${numPatterns}
+      walkSpeed: 1.7
       modes: {
         accessMode: foot
         egressMode: foot
@@ -205,6 +206,7 @@ export async function searchWalkRoute(
       from: { coordinates: { latitude: ${from.lat}, longitude: ${from.lng} } }
       to: { coordinates: { latitude: ${to.lat}, longitude: ${to.lng} } }
       numTripPatterns: 1
+      walkSpeed: 1.7
       modes: { directMode: foot }
     ) {
       tripPatterns {
