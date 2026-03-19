@@ -4,13 +4,16 @@ import { useRef, useEffect } from "react";
 import type { TripPattern, Leg } from "@/lib/entur-trip";
 import { getLegColor, formatTime, formatDuration, getModeName } from "@/lib/entur-trip";
 
-const WALK_MAX_SECS = 900;  // 15 min
+const WALK_MAX_SECS = 2700; // 45 min
+const BIKE_MAX_SECS = 2700; // 45 min
 const BIKE_SPEED_MS = 15000 / 3600; // 15 km/h in m/s
 
 interface RoutePanelProps {
   routes: TripPattern[];
   selectedIndex: number;
   onSelect: (index: number) => void;
+  onStart?: (index: number) => void;
+  onStartWalk?: () => void;
   walkRoute?: TripPattern;
   onBoundsChange?: (distFromViewportBottom: number) => void;
   excludeRail?: boolean;
@@ -95,7 +98,7 @@ function RealtimeBadge() {
   );
 }
 
-export function RoutePanel({ routes, selectedIndex, onSelect, walkRoute, onBoundsChange, excludeRail, onToggleExcludeRail }: RoutePanelProps) {
+export function RoutePanel({ routes, selectedIndex, onSelect, onStart, onStartWalk, walkRoute, onBoundsChange, excludeRail, onToggleExcludeRail }: RoutePanelProps) {
   const outerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -119,7 +122,7 @@ export function RoutePanel({ routes, selectedIndex, onSelect, walkRoute, onBound
   const walkSecs = walkLeg?.duration ?? 0;
   const bikeSecs = distM > 0 ? Math.max(60, Math.round(distM / BIKE_SPEED_MS)) : 0;
   const showWalk = walkSecs > 0 && walkSecs <= WALK_MAX_SECS;
-  const showBike = bikeSecs > 0 && bikeSecs <= WALK_MAX_SECS;
+  const showBike = bikeSecs > 0 && bikeSecs <= BIKE_MAX_SECS;
 
   return (
     <div
@@ -205,14 +208,20 @@ export function RoutePanel({ routes, selectedIndex, onSelect, walkRoute, onBound
               </div>
 
               {showWalk && (
-                <div className="px-4 py-2.5 border-t border-ink-primary/5">
+                <button
+                  onClick={onStartWalk}
+                  className="w-full px-4 py-2.5 border-t border-ink-primary/5 text-left hover:bg-ink-primary/[0.02] active:bg-ink-primary/5 transition-colors"
+                >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-base font-bold text-ink-primary">
                       {formatDuration(walkSecs)}
                     </span>
-                    <span className="text-xs text-ink-primary/40">
-                      {distM > 0 ? `${(distM / 1000).toFixed(1)} km` : ""}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-ink-primary/40">
+                        {distM > 0 ? `${(distM / 1000).toFixed(1)} km` : ""}
+                      </span>
+                      {onStartWalk && <span className="text-xs text-indigo-600 font-medium">Gå nå →</span>}
+                    </div>
                   </div>
                   <div className="h-3 rounded overflow-hidden mb-2">
                     <div
@@ -226,7 +235,7 @@ export function RoutePanel({ routes, selectedIndex, onSelect, walkRoute, onBound
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold text-white bg-[#6B7280]">
                     🚶 Gange
                   </span>
-                </div>
+                </button>
               )}
 
               {showBike && (
@@ -252,6 +261,16 @@ export function RoutePanel({ routes, selectedIndex, onSelect, walkRoute, onBound
               )}
             </div>
           )}
+        </div>
+        {/* Start button — commits to selected route and begins guidance */}
+        <div className="px-4 pt-2.5 pb-2 border-t border-ink-primary/8">
+          <button
+            onClick={() => onStart?.(selectedIndex)}
+            className="w-full py-3 rounded-xl bg-ink-primary text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+          >
+            Start navigasjon
+            <img src="/ArrowRight.svg" width={16} height={16} alt="" style={{ filter: "brightness(0) invert(1)" }} />
+          </button>
         </div>
         {/* Safe-area spacer — keeps content above home indicator, card background fills behind it */}
         <div style={{ height: "40px" }} />

@@ -7,6 +7,7 @@ import type { Stop } from "@/lib/entur-stops";
 import type { TripPattern } from "@/lib/entur-trip";
 import { getLegColor } from "@/lib/entur-trip";
 import { decodePolyline } from "@/lib/polyline";
+import type { WikiPOI } from "@/lib/wikipedia-pois";
 
 interface MapViewProps {
   userLocation?: { lat: number; lng: number };
@@ -19,6 +20,8 @@ interface MapViewProps {
   walkRoute?: TripPattern;
   userHeading?: number | null;
   userSpeed?: number | null;
+  pois?: WikiPOI[];
+  onPoiClick?: (poi: { pageid: number; title: string; lat: number; lng: number }) => void;
   onMapClick?: (lat: number, lng: number) => void;
   onViewChange?: (lat: number, lng: number) => void;
   onStopClick?: (stop: { lat: number; lng: number; name: string }) => void;
@@ -97,6 +100,8 @@ export function MapView({
   walkRoute,
   userHeading,
   userSpeed,
+  pois,
+  onPoiClick,
   onMapClick,
   onViewChange,
   onStopClick,
@@ -113,6 +118,8 @@ export function MapView({
   onViewChangeRef.current = onViewChange;
   const onStopClickRef = useRef(onStopClick);
   onStopClickRef.current = onStopClick;
+  const onPoiClickRef = useRef(onPoiClick);
+  onPoiClickRef.current = onPoiClick;
   const userHeadingRef = useRef<number | null>(null);
   userHeadingRef.current = userHeading ?? null;
 
@@ -480,6 +487,56 @@ export function MapView({
             },
           });
 
+          // ── Wikipedia POI source ────────────────────
+          map.current?.addSource("pois", { type: "geojson", data: emptyFC });
+          map.current?.addLayer({
+            id: "poi-circles",
+            type: "circle",
+            source: "pois",
+            paint: {
+              "circle-radius": 7,
+              "circle-color": "#ffffff",
+              "circle-stroke-color": "#6366f1",
+              "circle-stroke-width": 2.5,
+              "circle-opacity": 0.95,
+            },
+          });
+          map.current?.addLayer({
+            id: "poi-labels",
+            type: "symbol",
+            source: "pois",
+            layout: {
+              "text-field": ["get", "title"],
+              "text-font": ["TID UI Regular"],
+              "text-size": 11,
+              "text-offset": [0, 1.3],
+              "text-anchor": "top",
+              "text-max-width": 10,
+              "text-optional": true,
+            },
+            paint: {
+              "text-color": "#312e81",
+              "text-halo-color": "#ffffff",
+              "text-halo-width": 1.5,
+            },
+          });
+
+          // POI click → fire callback (tooltip shown by parent)
+          map.current?.on("mouseenter", "poi-circles", () => {
+            if (map.current) map.current.getCanvas().style.cursor = "pointer";
+          });
+          map.current?.on("mouseleave", "poi-circles", () => {
+            if (map.current) map.current.getCanvas().style.cursor = "";
+          });
+          map.current?.on("click", "poi-circles", (e) => {
+            const feature = e.features?.[0];
+            if (!feature) return;
+            const title = (feature.properties?.title as string) ?? "";
+            const pageid = (feature.properties?.pageid as number) ?? 0;
+            const coords = (feature.geometry as GeoJSON.Point).coordinates;
+            onPoiClickRef.current?.({ pageid, title, lat: coords[1], lng: coords[0] });
+          });
+
           // Stop click handlers
           const stopLayers = [
             "stops-badge",
@@ -726,7 +783,7 @@ export function MapView({
       const bounds = tripBounds(selected);
       if (bounds) {
         map.current?.fitBounds(bounds, {
-          padding: { top: 120, bottom: 280, left: 40, right: 40 },
+          padding: { top: 120, bottom: 320, left: 40, right: 40 },
           maxZoom: 15,
           duration: 800,
         });
@@ -786,6 +843,21 @@ export function MapView({
       })),
     });
   }, [stops]);
+
+  // Update POI layer
+  useEffect(() => {
+    if (!map.current || !mapLoaded.current) return;
+    const source = map.current.getSource("pois") as maplibre.GeoJSONSource;
+    if (!source) return;
+    source.setData({
+      type: "FeatureCollection",
+      features: (pois ?? []).map((poi) => ({
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: [poi.lng, poi.lat] },
+        properties: { title: poi.title, pageid: poi.pageid },
+      })),
+    });
+  }, [pois]);
 
   function handleRecenter() {
     if (!map.current || !userLocation) return;

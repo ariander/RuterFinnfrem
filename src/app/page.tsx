@@ -11,6 +11,7 @@ import type { Stop } from "@/lib/entur-stops";
 import { useUserLocation } from "@/hooks/useUserLocation";
 import { useNearbyStops } from "@/hooks/useNearbyStops";
 import { isOffRoute, detectBoardedTransitLeg } from "@/lib/offroute";
+import { fetchPoisAlongRoute, type WikiPOI } from "@/lib/wikipedia-pois";
 
 export default function Home() {
   const { userLocation, userHeading, userSpeed, geoError } = useUserLocation();
@@ -24,6 +25,15 @@ export default function Home() {
   const [walkOnly, setWalkOnly] = useState(false);
   const [walkRoute, setWalkRoute] = useState<TripPattern | null>(null);
   const [excludeRail, setExcludeRail] = useState(false);
+
+  // Walk guidance mode — user tapped "Gå nå" on walk/bike alternative
+  const [walkStarted, setWalkStarted] = useState(false);
+  const [walkPois, setWalkPois] = useState<WikiPOI[]>([]);
+
+  // POI tooltip — shown when user taps a Wikipedia POI on the map
+  const [selectedPoi, setSelectedPoi] = useState<{
+    pageid: number; title: string; lat: number; lng: number; extract?: string;
+  } | null>(null);
   const excludeRailRef = useRef(excludeRail);
   excludeRailRef.current = excludeRail;
   const { stops, handleViewChange } = useNearbyStops(userLocation);
@@ -219,6 +229,37 @@ export default function Home() {
     [],
   );
 
+  // Fetch Wikipedia POIs when walk guidance starts
+  useEffect(() => {
+    if (!walkStarted || !walkRoute) { setWalkPois([]); return; }
+    const points = walkRoute.legs[0]?.pointsOnLink?.points;
+    if (!points) return;
+    fetchPoisAlongRoute(points, 50).then(setWalkPois).catch(console.error);
+  }, [walkStarted, walkRoute]);
+
+  const handleStartWalk = useCallback(() => {
+    setWalkStarted(true);
+    setSelectedPoi(null);
+  }, []);
+
+  const handleStopWalk = useCallback(() => {
+    setWalkStarted(false);
+    setWalkPois([]);
+    setSelectedPoi(null);
+  }, []);
+
+  const handlePoiClick = useCallback(async (poi: { pageid: number; title: string; lat: number; lng: number }) => {
+    setSelectedPoi({ ...poi });
+    try {
+      const url = `https://no.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=true&explaintext=true&exchars=280&titles=${encodeURIComponent(poi.title)}&format=json&origin=*`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const pages = data.query?.pages ?? {};
+      const page = Object.values(pages)[0] as { extract?: string } | undefined;
+      setSelectedPoi((prev) => prev?.pageid === poi.pageid ? { ...prev, extract: page?.extract ?? "" } : prev);
+    } catch { /* ignore */ }
+  }, []);
+
   const handleClearDestination = useCallback(() => {
     setDestination(null);
     setRoutes([]);
@@ -229,6 +270,9 @@ export default function Home() {
     setSearchOpen(false);
     setBoardingPrompt(null);
     setBoardedJourneyId(null);
+    setWalkStarted(false);
+    setWalkPois([]);
+    setSelectedPoi(null);
     lastSearchedDestRef.current = null;
   }, []);
 
@@ -290,11 +334,18 @@ export default function Home() {
     [topPad, bottomPad],
   );
 
+  // Preview: tap a route → highlights + map fits, but no detail yet
   const handleRouteSelect = useCallback((i: number) => {
+    setSelectedRoute(i);
+    setBoardedJourneyId(null);
+  }, []);
+
+  // Commit: tap "Start" → open route detail and begin guidance
+  const handleRouteStart = useCallback((i: number) => {
     setSelectedRoute(i);
     setExpandedRoute(i);
     setRouteDetailMinimized(false);
-    setBoardedJourneyId(null); // clear boarding state when switching routes
+    setBoardedJourneyId(null);
   }, []);
 
 
@@ -387,25 +438,29 @@ export default function Home() {
       <MapView
         userLocation={userLocation ?? undefined}
         destination={destination ?? undefined}
-        routes={routes}
+        routes={walkStarted ? [] : routes}
         selectedRouteIndex={selectedRoute}
-        stops={stops}
-        centerOnUser={expandedRoute !== null}
+        stops={destination ? [] : stops}
+        centerOnUser={expandedRoute !== null || walkStarted}
         detailMinimized={routeDetailMinimized}
         walkRoute={walkRoute ?? undefined}
         userHeading={userHeading}
         userSpeed={userSpeed}
+        pois={walkPois}
+        onPoiClick={handlePoiClick}
         onViewChange={handleViewChange}
         onStopClick={handleDestinationSelect}
         followPadding={followPadding}
       />
 
       {/* Route panel / detail */}
-      {routes.length > 0 && expandedRoute === null && (
+      {routes.length > 0 && expandedRoute === null && !walkStarted && (
         <RoutePanel
           routes={routes}
           selectedIndex={selectedRoute}
           onSelect={handleRouteSelect}
+          onStart={handleRouteStart}
+          onStartWalk={handleStartWalk}
           walkRoute={!loading ? (walkRoute ?? undefined) : undefined}
           onBoundsChange={handleBottomBoundsChange}
           excludeRail={excludeRail}
@@ -423,8 +478,20 @@ export default function Home() {
         />
       )}
 
+      {/* Walk guidance — reuse RouteDetail layout for walk-only trips */}
+      {walkStarted && walkRoute && destination && (
+        <RouteDetail
+          trip={walkRoute}
+          destinationName={destination.name}
+          onBack={handleStopWalk}
+          onMinimizedChange={setRouteDetailMinimized}
+          onBoundsChange={handleBottomBoundsChange}
+          userLocation={userLocation ?? undefined}
+        />
+      )}
+
       {/* Walk-only: no transit routes — show walk + bike panel (only after transit search is done) */}
-      {walkOnly && !loading && routes.length === 0 && destination && userLocation && (
+      {walkOnly && !loading && routes.length === 0 && destination && userLocation && !walkStarted && (
         <div
           ref={walkPanelRef}
           className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 animate-in slide-in-from-bottom-4 fade-in duration-300"
@@ -443,69 +510,84 @@ export default function Home() {
               const leg = walkRoute?.legs?.[0];
               const distM = leg?.distance ?? walkRoute?.walkDistance ?? 0;
               const walkDuration = leg ? formatDuration(leg.duration) : null;
-              const bikeSeconds = distM > 0 ? Math.max(60, Math.round(distM / (15000 / 3600))) : null; // ~15 km/h
+              const bikeSeconds = distM > 0 ? Math.max(60, Math.round(distM / (15000 / 3600))) : null;
               const bikeDuration = bikeSeconds ? formatDuration(bikeSeconds) : null;
               const distKm = distM > 0 ? (distM / 1000).toFixed(1) : null;
 
               return (
                 <>
                   {/* Walk row */}
-                  <div className="px-4 py-3 border-b border-ink-primary/5">
+                  <button
+                    onClick={handleStartWalk}
+                    className="w-full px-4 py-3 border-b border-ink-primary/5 text-left hover:bg-ink-primary/[0.02] active:bg-ink-primary/5 transition-colors"
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-lg font-bold text-ink-primary">
-                          {walkDuration ?? "—"}
-                        </span>
-                        {distKm && (
-                          <span className="text-xs text-ink-primary/50">{distKm} km</span>
-                        )}
+                        <span className="text-lg font-bold text-ink-primary">{walkDuration ?? "—"}</span>
+                        {distKm && <span className="text-xs text-ink-primary/50">{distKm} km</span>}
                       </div>
+                      <span className="text-xs text-indigo-600 font-medium">Gå nå →</span>
                     </div>
-                    {/* Leg bar — dashed walk */}
                     <div className="h-3 rounded overflow-hidden mb-2">
-                      <div
-                        className="h-full w-full rounded"
-                        style={{
-                          backgroundImage:
-                            "repeating-linear-gradient(90deg, #9CA3AF 0px, #9CA3AF 4px, transparent 4px, transparent 8px)",
-                        }}
-                      />
+                      <div className="h-full w-full rounded" style={{ backgroundImage: "repeating-linear-gradient(90deg, #9CA3AF 0px, #9CA3AF 4px, transparent 4px, transparent 8px)" }} />
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold text-white bg-[#6B7280]">
-                        🚶 Gange
-                      </span>
-                    </div>
-                  </div>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold text-white bg-[#6B7280]">
+                      🚶 Gange
+                    </span>
+                  </button>
 
                   {/* Bike row */}
                   {bikeDuration != null && (
                     <div className="px-4 py-3">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-lg font-bold text-ink-primary">
-                            {bikeDuration}
-                          </span>
-                          {distKm && (
-                            <span className="text-xs text-ink-primary/50">{distKm} km</span>
-                          )}
+                          <span className="text-lg font-bold text-ink-primary">{bikeDuration}</span>
+                          {distKm && <span className="text-xs text-ink-primary/50">{distKm} km</span>}
                         </div>
                         <span className="text-[10px] text-ink-primary/35">estimert</span>
                       </div>
-                      {/* Leg bar — solid teal for bike */}
                       <div className="h-3 rounded overflow-hidden mb-2 bg-[#0891b2]" />
-                      <div className="flex items-center gap-1.5">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold text-white bg-[#0891b2]">
-                          🚲 Sykkel
-                        </span>
-                      </div>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold text-white bg-[#0891b2]">
+                        🚲 Sykkel
+                      </span>
                     </div>
                   )}
                 </>
               );
             })()}
-          {/* Safe-area spacer — keeps content above home indicator */}
           <div style={{ height: "40px" }} />
+          </div>
+        </div>
+      )}
+
+      {/* Wikipedia POI tooltip */}
+      {selectedPoi && (
+        <div
+          className="fixed left-1/2 -translate-x-1/2 z-[125] w-full max-w-md px-4 animate-in slide-in-from-bottom-2 fade-in duration-200"
+          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 108px)" }}
+        >
+          <div className="bg-white/97 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/8 px-4 py-3">
+            <div className="flex items-start justify-between gap-2 mb-1.5">
+              <h3 className="font-semibold text-ink-primary text-sm leading-snug">{selectedPoi.title}</h3>
+              <button
+                onClick={() => setSelectedPoi(null)}
+                className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-ink-primary/8 text-ink-primary/50 text-base leading-none"
+              >×</button>
+            </div>
+            {selectedPoi.extract === undefined ? (
+              <p className="text-xs text-ink-primary/40 mb-2.5">Laster...</p>
+            ) : selectedPoi.extract ? (
+              <p className="text-xs text-ink-primary/70 leading-relaxed mb-2.5 line-clamp-3">{selectedPoi.extract}</p>
+            ) : null}
+            <a
+              href={`https://no.wikipedia.org/wiki/${encodeURIComponent(selectedPoi.title)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#3366cc]"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              Åpne på Wikipedia
+            </a>
           </div>
         </div>
       )}
