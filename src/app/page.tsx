@@ -223,6 +223,7 @@ export default function Home() {
       setWalkOnly(false);
       setWalkRoute(null);
       setExpandedRoute(null);
+      setArrivedAtDest(false);
       lastSearchedDestRef.current = null;
       setSearchOpen(false);
     },
@@ -236,6 +237,22 @@ export default function Home() {
     if (!points) return;
     fetchPoisAlongRoute(points, 50).then(setWalkPois).catch(console.error);
   }, [walkStarted, walkRoute]);
+
+  // "Du er fremme" — trigger when user is within 300 m of destination during navigation
+  useEffect(() => {
+    if (!userLocation || !destination || expandedRoute === null) return;
+    if (arrivedAtDest) return;
+    const R = 6371000;
+    const dLat = ((destination.lat - userLocation.lat) * Math.PI) / 180;
+    const dLng = ((destination.lng - userLocation.lng) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((userLocation.lat * Math.PI) / 180) *
+      Math.cos((destination.lat * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+    const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    if (dist < 300) setArrivedAtDest(true);
+  }, [userLocation]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStartWalk = useCallback(() => {
     setWalkStarted(true);
@@ -273,6 +290,7 @@ export default function Home() {
     setWalkStarted(false);
     setWalkPois([]);
     setSelectedPoi(null);
+    setArrivedAtDest(false);
     lastSearchedDestRef.current = null;
   }, []);
 
@@ -295,6 +313,7 @@ export default function Home() {
   }, [excludeRail, userLocation, destination]);
 
   const [routeDetailMinimized, setRouteDetailMinimized] = useState(false);
+  const [arrivedAtDest, setArrivedAtDest] = useState(false);
 
   // Dynamic map follow-padding: measure top card + bottom panel heights
   const topCardRef = useRef<HTMLDivElement>(null);
@@ -440,7 +459,7 @@ export default function Home() {
         destination={destination ?? undefined}
         routes={walkStarted ? [] : routes}
         selectedRouteIndex={selectedRoute}
-        stops={destination ? [] : stops}
+        stops={expandedRoute !== null ? stops : (destination ? [] : stops)}
         centerOnUser={expandedRoute !== null || walkStarted}
         detailMinimized={routeDetailMinimized}
         walkRoute={walkRoute ?? undefined}
@@ -556,6 +575,26 @@ export default function Home() {
               );
             })()}
           <div style={{ height: "40px" }} />
+          </div>
+        </div>
+      )}
+
+      {/* "Du er fremme" arrival banner */}
+      {arrivedAtDest && expandedRoute !== null && destination && (
+        <div
+          className="fixed left-1/2 -translate-x-1/2 z-[125] w-full max-w-md px-4 animate-in slide-in-from-top-2 fade-in duration-300"
+          style={{ top: "calc(env(safe-area-inset-top, 0px) + 80px)" }}
+        >
+          <div className="bg-emerald-500 text-white rounded-2xl shadow-xl px-4 py-3 flex items-center gap-3">
+            <span className="text-2xl">📍</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm">Du er fremme!</p>
+              <p className="text-xs text-white/80 truncate">{destination.name}</p>
+            </div>
+            <button
+              onClick={() => setArrivedAtDest(false)}
+              className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-white/20 text-white text-lg leading-none"
+            >×</button>
           </div>
         </div>
       )}
