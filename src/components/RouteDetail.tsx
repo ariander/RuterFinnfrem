@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { ChevronLeft, ChevronDown } from "lucide-react";
 import type { TripPattern } from "@/lib/entur-trip";
 import { getLegColor, formatTime, formatDuration, getModeName } from "@/lib/entur-trip";
+import { decodePolyline } from "@/lib/polyline";
 
 interface RouteDetailProps {
   trip: TripPattern;
@@ -16,6 +17,41 @@ interface RouteDetailProps {
   onBoundsChange?: (distFromViewportBottom: number) => void;
   /** User's current GPS position — used for proximity-based boarding hints */
   userLocation?: { lat: number; lng: number };
+}
+
+/** Compute how far along a polyline (0–1) the user's position is, based on the nearest segment projection */
+function positionProgress(userLoc: { lat: number; lng: number }, pts: [number, number][]): number {
+  if (pts.length < 2) return 0;
+  const R = 111320;
+  const cosLat = Math.cos((userLoc.lat * Math.PI) / 180);
+
+  const segLens: number[] = [];
+  let totalLen = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const dx = (pts[i + 1][0] - pts[i][0]) * R * cosLat;
+    const dy = (pts[i + 1][1] - pts[i][1]) * R;
+    const l = Math.hypot(dx, dy);
+    segLens.push(l);
+    totalLen += l;
+  }
+  if (totalLen === 0) return 0;
+
+  let bestSegIdx = 0, bestT = 0, bestDist = Infinity;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const px = (userLoc.lng - pts[i][0]) * R * cosLat;
+    const py = (userLoc.lat - pts[i][1]) * R;
+    const dx = (pts[i + 1][0] - pts[i][0]) * R * cosLat;
+    const dy = (pts[i + 1][1] - pts[i][1]) * R;
+    const lenSq = dx * dx + dy * dy;
+    const t = lenSq > 0 ? Math.max(0, Math.min(1, (px * dx + py * dy) / lenSq)) : 0;
+    const d = Math.hypot(px - t * dx, py - t * dy);
+    if (d < bestDist) { bestDist = d; bestT = t; bestSegIdx = i; }
+  }
+
+  let distTraveled = 0;
+  for (let i = 0; i < bestSegIdx; i++) distTraveled += segLens[i];
+  distTraveled += bestT * segLens[bestSegIdx];
+  return Math.min(1, Math.max(0, distTraveled / totalLen));
 }
 
 function haversineM(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
@@ -143,8 +179,15 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
   const focusLeg = trip.legs[focusLegIndex];
   const nextTransitLeg = trip.legs.slice(focusLegIndex).find(l => l.mode !== "foot") ?? null;
 
+  // If user is currently riding a transit leg, show "get off at X" in minimized header
+  const activeLegInTrip = activeLegIndex !== null ? trip.legs[activeLegIndex] : null;
+  const isRidingTransit = activeLegInTrip !== null && activeLegInTrip.mode !== "foot";
+
   function platformLabel(mode: string, code: string) {
-    return mode === "rail" || mode === "coach" ? `Spor ${code}` : `Perrong ${code}`;
+    if (mode === "rail" || mode === "metro") return `Spor ${code}`;
+    if (mode === "water") return `Kai ${code}`;
+    if (mode === "tram") return `Holdeplass ${code}`;
+    return `Plattform ${code}`; // bus, coach
   }
 
   return (
@@ -164,38 +207,57 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
           </button>
           {minimized ? (
             <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
-              {focusLeg?.mode === "foot" && (
-                <span className="text-sm text-ink-primary/70 shrink-0">
-                  🚶 {Math.round(focusLeg.duration / 60)} m
-                </span>
-              )}
-              {nextTransitLeg && (
+              {isRidingTransit && activeLegInTrip ? (
                 <>
-                  {focusLeg?.mode === "foot" && (
-                    <img src="/ArrowRight.svg" width={14} height={14} className="opacity-30 shrink-0" alt="→" />
-                  )}
                   <span
                     className="inline-flex px-1.5 py-0.5 rounded text-xs font-bold text-white shrink-0"
-                    style={{ backgroundColor: getLegColor(nextTransitLeg) }}
+                    style={{ backgroundColor: getLegColor(activeLegInTrip) }}
                   >
-                    {nextTransitLeg.line?.publicCode || getModeName(nextTransitLeg.mode)}
+                    {activeLegInTrip.line?.publicCode || getModeName(activeLegInTrip.mode)}
                   </span>
-                  {nextTransitLeg.fromEstimatedCall?.destinationDisplay?.frontText && (
-                    <span className="text-sm font-medium text-ink-primary truncate">
-                      {nextTransitLeg.fromEstimatedCall.destinationDisplay.frontText}
-                    </span>
-                  )}
-                  <span className="text-sm text-ink-primary/70 shrink-0">
-                    {formatTime(nextTransitLeg.expectedStartTime)}
-                    {nextTransitLeg.fromPlace.quay?.publicCode &&
-                      ` · ${platformLabel(nextTransitLeg.mode, nextTransitLeg.fromPlace.quay.publicCode)}`}
+                  <span className="text-sm font-medium text-ink-primary truncate">
+                    Gå av på {activeLegInTrip.toPlace.name}
+                  </span>
+                  <span className="text-sm text-ink-primary/50 shrink-0 ml-auto">
+                    {formatTime(activeLegInTrip.expectedEndTime)}
                   </span>
                 </>
-              )}
-              {!nextTransitLeg && focusLeg && (
-                <span className="text-sm text-ink-primary/50 truncate">
-                  {formatTime(trip.endTime)}
-                </span>
+              ) : (
+                <>
+                  {focusLeg?.mode === "foot" && (
+                    <span className="text-sm text-ink-primary/70 shrink-0">
+                      🚶 {Math.round(focusLeg.duration / 60)} m
+                    </span>
+                  )}
+                  {nextTransitLeg && (
+                    <>
+                      {focusLeg?.mode === "foot" && (
+                        <img src="/ArrowRight.svg" width={14} height={14} className="opacity-30 shrink-0" alt="→" />
+                      )}
+                      <span
+                        className="inline-flex px-1.5 py-0.5 rounded text-xs font-bold text-white shrink-0"
+                        style={{ backgroundColor: getLegColor(nextTransitLeg) }}
+                      >
+                        {nextTransitLeg.line?.publicCode || getModeName(nextTransitLeg.mode)}
+                      </span>
+                      {nextTransitLeg.fromEstimatedCall?.destinationDisplay?.frontText && (
+                        <span className="text-sm font-medium text-ink-primary truncate">
+                          {nextTransitLeg.fromEstimatedCall.destinationDisplay.frontText}
+                        </span>
+                      )}
+                      <span className="text-sm text-ink-primary/70 shrink-0">
+                        {formatTime(nextTransitLeg.expectedStartTime)}
+                        {nextTransitLeg.fromPlace.quay?.publicCode &&
+                          ` · ${platformLabel(nextTransitLeg.mode, nextTransitLeg.fromPlace.quay.publicCode)}`}
+                      </span>
+                    </>
+                  )}
+                  {!nextTransitLeg && focusLeg && (
+                    <span className="text-sm text-ink-primary/50 truncate">
+                      {formatTime(trip.endTime)}
+                    </span>
+                  )}
+                </>
               )}
             </div>
           ) : (
@@ -302,16 +364,27 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
                 haversineM(userLocation, {
                   lat: nextLeg.fromPlace.latitude,
                   lng: nextLeg.fromPlace.longitude,
-                }) < 50;
+                }) < 200;
+
+              // For transfer display: use adjacent legs' modes for platform labels
+              const prevVisLeg = i > 0 ? visibleLegs[i - 1] : undefined;
+              const fromPlatformMode = prevVisLeg?.mode !== "foot" ? (prevVisLeg?.mode ?? nextLeg?.mode ?? "bus") : (nextLeg?.mode ?? "bus");
+              const toPlatformMode = nextLeg?.mode !== "foot" ? (nextLeg?.mode ?? "bus") : "bus";
 
               // Delay for departure
               const depDelay = delayMinutes(leg.aimedStartTime, leg.expectedStartTime);
 
-              // Progress within active leg (0–1)
+              // Progress within active leg (0–1), position-based when possible
               const legStart = new Date(leg.expectedStartTime).getTime();
               const legEnd = new Date(leg.expectedEndTime).getTime();
               const legProgress = isActive
-                ? Math.min(1, Math.max(0, (now - legStart) / (legEnd - legStart)))
+                ? (() => {
+                    if (userLocation && leg.pointsOnLink?.points) {
+                      const pts = decodePolyline(leg.pointsOnLink.points);
+                      if (pts.length >= 2) return positionProgress(userLocation, pts);
+                    }
+                    return Math.min(1, Math.max(0, (now - legStart) / (legEnd - legStart)));
+                  })()
                 : 0;
 
               return (
@@ -404,9 +477,9 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
                             </div>
                             {leg.fromPlace.quay?.publicCode && leg.toPlace.quay?.publicCode && (
                               <div className="text-[11px] text-ink-primary/60 bg-ink-primary/5 px-1.5 py-0.5 rounded inline-flex items-center gap-1.5">
-                                <span>{platformLabel(leg.mode, leg.fromPlace.quay.publicCode)}</span>
+                                <span>{platformLabel(fromPlatformMode, leg.fromPlace.quay.publicCode)}</span>
                                 <img src="/ArrowRight.svg" width={12} height={12} alt="" className="opacity-50" />
-                                <span>{platformLabel(leg.mode, leg.toPlace.quay.publicCode)}</span>
+                                <span>{platformLabel(toPlatformMode, leg.toPlace.quay.publicCode)}</span>
                               </div>
                             )}
                           </>
