@@ -58,6 +58,33 @@ export default function Home() {
     }
   }, [loading]);
 
+  // When app returns from background: clear boarding lock if the journey has ended,
+  // and force a route re-search so the user sees fresh data
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      const journeyId = boardedJourneyIdRef.current;
+      if (journeyId) {
+        // If the confirmed transit leg has ended, release the lock
+        const route = expandedRouteRef.current !== null ? routesRef.current[expandedRouteRef.current] : null;
+        const legStillActive = route?.legs.some(leg => {
+          if (leg.mode === "foot" || leg.serviceJourney?.id !== journeyId) return false;
+          return new Date(leg.expectedEndTime).getTime() > now - 2 * 60_000;
+        });
+        if (!legStillActive) {
+          setBoardedJourneyId(null);
+          lastSearchedDestRef.current = null; // trigger fresh search
+        }
+      } else {
+        // Not boarded — force refresh so off-route is re-evaluated after background time
+        lastSearchedDestRef.current = null;
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Boarding detection: show popup when user appears to be on a transit vehicle
   useEffect(() => {
     if (expandedRoute === null || !userLocation) return;
@@ -367,6 +394,7 @@ export default function Home() {
         detailMinimized={routeDetailMinimized}
         walkRoute={walkRoute ?? undefined}
         userHeading={userHeading}
+        userSpeed={userSpeed}
         onViewChange={handleViewChange}
         onStopClick={handleDestinationSelect}
         followPadding={followPadding}
@@ -489,7 +517,9 @@ export default function Home() {
           style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 96px)" }}
         >
           <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/8 px-4 py-3">
-            <p className="text-sm text-ink-primary/70 mb-1">Er du på bussen?</p>
+            <p className="text-sm text-ink-primary/70 mb-1">Er du på {
+            ({ bus: "bussen", tram: "trikken", metro: "T-banen", rail: "toget", water: "båten", coach: "bussen" })[boardingPrompt.leg.mode] ?? "kjøretøyet"
+          }?</p>
             <div className="flex items-center gap-2 mb-3">
               <span
                 className="inline-flex px-2 py-0.5 rounded text-xs font-bold text-white shrink-0"

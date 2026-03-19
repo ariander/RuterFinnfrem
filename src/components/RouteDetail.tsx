@@ -495,10 +495,11 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
                                 call.aimedDepartureTime,
                                 call.expectedDepartureTime,
                               );
+                              const stopPast = new Date(call.expectedDepartureTime).getTime() < now;
                               return (
                                 <div
                                   key={j}
-                                  className="flex items-baseline justify-between py-1 pl-3 border-l-2"
+                                  className={`flex items-baseline justify-between py-1 pl-3 border-l-2 transition-opacity ${stopPast ? "opacity-30" : ""}`}
                                   style={{ borderColor: color }}
                                 >
                                   <span className="text-xs text-ink-primary/60 truncate">

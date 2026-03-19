@@ -18,6 +18,7 @@ interface MapViewProps {
   detailMinimized?: boolean;
   walkRoute?: TripPattern;
   userHeading?: number | null;
+  userSpeed?: number | null;
   onMapClick?: (lat: number, lng: number) => void;
   onViewChange?: (lat: number, lng: number) => void;
   onStopClick?: (stop: { lat: number; lng: number; name: string }) => void;
@@ -95,6 +96,7 @@ export function MapView({
   detailMinimized,
   walkRoute,
   userHeading,
+  userSpeed,
   onMapClick,
   onViewChange,
   onStopClick,
@@ -577,6 +579,10 @@ export function MapView({
   const followPaddingRef = useRef(followPadding ?? FOLLOW_PADDING_FALLBACK);
   followPaddingRef.current = followPadding ?? FOLLOW_PADDING_FALLBACK;
 
+  // Speed ref for dynamic zoom — avoids re-triggering effects on speed change alone
+  const userSpeedRef = useRef(userSpeed ?? null);
+  userSpeedRef.current = userSpeed ?? null;
+
   // Re-center when detail panel is minimized/expanded — wait for the 300ms CSS transition to
   // finish so that ResizeObserver has already delivered the final padding values.
   const prevDetailMinimized = useRef<boolean | undefined>(undefined);
@@ -617,9 +623,13 @@ export function MapView({
   // Follow user location continuously when in follow mode (only on GPS updates, not on centerOnUser flip)
   useEffect(() => {
     if (!map.current || !userLocation || !centerOnUser || !isFollowingRef.current) return;
+    const kmh = userSpeedRef.current ?? 0;
+    // Zoom out dynamically at higher speeds — stays zoomed in while walking/standing
+    const zoom = kmh >= 80 ? 11 : kmh >= 50 ? 12 : kmh >= 30 ? 13 : kmh >= 15 ? 14 : 15;
     map.current.easeTo({
       center: [userLocation.lng, userLocation.lat],
-      duration: 800,
+      zoom,
+      duration: 1200,
       padding: followPaddingRef.current,
     });
   }, [userLocation]); // eslint-disable-line react-hooks/exhaustive-deps

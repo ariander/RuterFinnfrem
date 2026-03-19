@@ -40,7 +40,11 @@ export function useNearbyStops(userLocation: LatLng | null) {
         }
         if (changed) setStops(Array.from(cache.values()));
       })
-      .catch(console.error);
+      .catch((err) => {
+        console.error(err);
+        // Reset so next GPS update triggers a retry
+        lastStopFetchPosRef.current = null;
+      });
   }, [userLocation]);
 
   const handleViewChange = useCallback((lat: number, lng: number) => {
@@ -60,7 +64,10 @@ export function useNearbyStops(userLocation: LatLng | null) {
         }
         if (changed) setStops(Array.from(cache.values()));
       })
-      .catch(console.error);
+      .catch((err) => {
+        console.error(err);
+        lastViewFetchPosRef.current = null;
+      });
   }, []);
 
   return { stops, handleViewChange };

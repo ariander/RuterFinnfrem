@@ -71,6 +71,9 @@ function LegSummary({ legs }: { legs: Leg[] }) {
             style={{ backgroundColor: getLegColor(leg) }}
           >
             {leg.line?.publicCode || getModeName(leg.mode)}
+            {leg.fromEstimatedCall?.destinationDisplay?.frontText && (
+              <span className="font-medium opacity-90">{leg.fromEstimatedCall.destinationDisplay.frontText}</span>
+            )}
           </span>
           {leg.intermediateEstimatedCalls && leg.intermediateEstimatedCalls.length > 0 && (
             <span className="text-xs text-ink-primary/50">
