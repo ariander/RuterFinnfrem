@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Ruter Reisetid",
-    short_name: "Reisetid",
+    name: "Finn frem",
+    short_name: "Finn frem",
     description: "Interaktivt isokron-kart for Ruter",
     start_url: "/",
     display: "standalone",
