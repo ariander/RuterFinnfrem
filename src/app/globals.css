@@ -210,6 +210,11 @@
 .search-trigger {
   transition: opacity 0.2s ease;
 }
+@media (display-mode: standalone) {
+  .search-trigger {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 4px) !important;
+  }
+}
 .search-trigger.search-trigger-hidden {
   opacity: 0;
   pointer-events: none;
