@@ -151,7 +151,7 @@ export const SearchBar = forwardRef<SearchBarRef, SearchBarProps>(function Searc
     setQuery("");
     setResults([]);
     setIsOpen(false);
-    inputRef.current?.focus();
+    inputRef.current?.blur();
     onClear?.();
   }
 

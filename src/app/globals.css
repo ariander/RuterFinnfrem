@@ -212,7 +212,7 @@
 }
 @media (display-mode: standalone) {
   .search-trigger {
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 4px) !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) - 10px) !important;
   }
 }
 .search-trigger.search-trigger-hidden {
