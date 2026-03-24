@@ -128,9 +128,9 @@ export function RoutePanel({ routes, selectedIndex, onSelect, onStart, onStartWa
     <div
       ref={outerRef}
       className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 animate-in slide-in-from-bottom-4 fade-in duration-300"
-      style={{ bottom: "-40px" }}
+      style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
     >
-      <div className="bg-white/90 backdrop-blur-xl rounded-t-2xl shadow-xl border border-ink-primary/5 overflow-hidden">
+      <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/5 overflow-hidden">
         <div className="px-4 pt-3 pb-2">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold text-ink-primary">Reiseruter</h2>
@@ -144,7 +144,7 @@ export function RoutePanel({ routes, selectedIndex, onSelect, onStart, onStartWa
                       : "bg-[#003087]/8 border-[#003087]/20 text-[#003087]"
                   }`}
                 >
-                  <img src="/icons/train.svg" width={12} height={12} alt="" style={{ opacity: excludeRail ? 0.4 : 0.8 }} />
+                  <img src="/icons/train-accent.svg" width={12} height={12} alt="" style={{ opacity: excludeRail ? 0.4 : 0.8 }} />
                   Tog
                 </button>
               )}
@@ -272,8 +272,7 @@ export function RoutePanel({ routes, selectedIndex, onSelect, onStart, onStartWa
             <img src="/ArrowRight.svg" width={16} height={16} alt="" style={{ filter: "brightness(0) invert(1)" }} />
           </button>
         </div>
-        {/* Safe-area spacer — keeps content above home indicator, card background fills behind it */}
-        <div style={{ height: "40px" }} />
+        <div style={{ height: "8px" }} />
       </div>
     </div>
   );

@@ -194,9 +194,9 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
     <div
       ref={outerRef}
       className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 animate-in slide-in-from-bottom-4 fade-in duration-300"
-      style={{ bottom: "-40px" }}
+      style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
     >
-      <div className="bg-white/90 backdrop-blur-xl rounded-t-2xl shadow-xl border border-ink-primary/5 overflow-hidden">
+      <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/5 overflow-hidden">
         {/* Header */}
         <div className="px-3 pt-3 pb-2.5 flex items-center gap-2 border-b border-ink-primary/5">
           <button
@@ -626,8 +626,7 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
 
           </div>
         </div>
-        {/* Safe-area spacer — keeps content above home indicator, card background fills behind it */}
-        <div style={{ height: "40px" }} />
+        <div style={{ height: "8px" }} />
       </div>
     </div>
   );

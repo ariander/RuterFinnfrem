@@ -375,11 +375,11 @@ export default function Home() {
         <button
           onClick={() => { setSearchOpen(true); searchBarRef.current?.focus(); }}
           className={`search-trigger fixed left-1/2 z-[110] w-full max-w-md px-4${searchOpen ? " search-trigger-hidden" : ""}`}
-          style={{ bottom: "-40px", transform: "translateX(-50%)" }}
+          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)", transform: "translateX(-50%)" }}
         >
           <div
-            className="bg-white/85 backdrop-blur-xl rounded-t-2xl shadow-lg px-4 flex items-center gap-3"
-            style={{ height: "92px", alignItems: "flex-start", paddingTop: "14px" }}
+            className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-lg px-4 flex items-center gap-3"
+            style={{ height: "52px", alignItems: "center" }}
           >
             <Search size={16} className="text-ink-primary/50 shrink-0" />
             <span className="text-sm text-ink-primary/40">Hvor vil du reise?</span>
@@ -421,12 +421,16 @@ export default function Home() {
         </div>
       )}
 
-      {/* Route header — shown when destination is set */}
+      {/* Route header — shown when destination is set, slides away during active journey */}
       {destination && (
         <div
           ref={topCardRef}
-          className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4"
-          style={{ top: "env(safe-area-inset-top, 0px)" }}
+          className={`fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 transition-all duration-300 ease-in-out${
+            expandedRoute !== null || walkStarted
+              ? " -translate-y-full opacity-0 pointer-events-none"
+              : " translate-y-0 opacity-100"
+          }`}
+          style={{ top: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
         >
           <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-lg px-3 py-2.5">
             <div className="flex flex-col gap-0 px-2">
@@ -514,9 +518,9 @@ export default function Home() {
         <div
           ref={walkPanelRef}
           className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4 animate-in slide-in-from-bottom-4 fade-in duration-300"
-          style={{ bottom: "-40px" }}
+          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
         >
-          <div className="bg-white/90 backdrop-blur-xl rounded-t-2xl shadow-xl border border-ink-primary/5 overflow-hidden">
+          <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/5 overflow-hidden">
             {/* Header */}
             <div className="px-4 pt-3 pb-2 border-b border-ink-primary/5">
               <div className="flex items-center justify-between">
@@ -574,7 +578,7 @@ export default function Home() {
                 </>
               );
             })()}
-          <div style={{ height: "40px" }} />
+          <div style={{ height: "8px" }} />
           </div>
         </div>
       )}
