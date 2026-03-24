@@ -211,7 +211,7 @@
   transition: opacity 0.2s ease;
 }
 .search-trigger.search-trigger-hidden {
-  opacity: 0;
+  opacity: 0; 
   pointer-events: none;
 }
 @media (hover: hover) and (pointer: fine) {
