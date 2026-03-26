@@ -198,7 +198,7 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
     >
       <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/5 overflow-hidden">
         {/* Header */}
-        <div className="px-3 pt-3 pb-2.5 flex items-center gap-2 border-b border-ink-primary/5">
+        <div className={`px-3 pt-3 pb-2.5 flex items-center gap-2 ${!minimized ? 'border-b border-ink-primary/5' : ''}`}>
           <button
             onClick={onBack}
             className="w-8 h-8 rounded-full flex items-center justify-center bg-ink-primary/5 hover:bg-ink-primary/10 transition-colors shrink-0"
@@ -626,7 +626,7 @@ export function RouteDetail({ trip, destinationName, onBack, onMinimizedChange, 
 
           </div>
         </div>
-        <div style={{ height: "8px" }} />
+        <div style={{ height: minimized ? 0 : "8px" }} />
       </div>
     </div>
   );

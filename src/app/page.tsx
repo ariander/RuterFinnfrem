@@ -284,7 +284,7 @@ export default function Home() {
     setExpandedRoute(null);
     setWalkOnly(false);
     setWalkRoute(null);
-    setSearchOpen(false);
+    setSearchOpen(true);
     setBoardingPrompt(null);
     setBoardedJourneyId(null);
     setWalkStarted(false);
@@ -292,6 +292,10 @@ export default function Home() {
     setSelectedPoi(null);
     setArrivedAtDest(false);
     lastSearchedDestRef.current = null;
+
+    setTimeout(() => {
+      searchBarRef.current?.focus();
+    }, 10);
   }, []);
 
   const handleToggleExcludeRail = useCallback(async () => {
@@ -369,7 +373,7 @@ export default function Home() {
 
 
   return (
-    <main className="fixed inset-0">
+    <main className="fixed top-0 left-0 w-full h-dvh overflow-hidden">
       {/* Fake search trigger — mobile only, bottom, fades out when search opens */}
       {!destination && (
         <button
